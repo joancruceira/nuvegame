@@ -1,3 +1,4 @@
+```js
 (() => {
   // --- DOM ---
   const menu = document.getElementById("menu");
@@ -29,23 +30,30 @@
   const H = 520;
 
   // --- HiDPI / Mobile sharpness (canvas interno) ---
-  function resizeCanvasToDisplaySize() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+  let DPR = Math.max(1, window.devicePixelRatio || 1);
 
-    // CSS responsive (el tamaño visual lo define CSS)
+  function applyDprTransform() {
+    // Siempre mantenemos el transform con DPR (NO 1,0,0,1)
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function resizeCanvasToDisplaySize() {
+    DPR = Math.max(1, window.devicePixelRatio || 1);
+
+    // Tamaño visual (CSS)
     canvas.style.width = "100%";
     canvas.style.height = "auto";
+    canvas.style.aspectRatio = `${W} / ${H}`;
 
-    // Tamaño interno nítido
-    canvas.width = Math.floor(W * dpr);
-    canvas.height = Math.floor(H * dpr);
+    // Buffer interno (nítido)
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
 
-    // Trabajamos en coordenadas base W/H
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    applyDprTransform();
 
-    // Opcional: mejora calidad de imágenes al escalar
     ctx.imageSmoothingEnabled = true;
   }
+
   resizeCanvasToDisplaySize();
   window.addEventListener("resize", resizeCanvasToDisplaySize);
 
@@ -70,6 +78,7 @@
   function stopMusic() { music.pause(); music.currentTime = 0; }
   function pauseMusic() { music.pause(); }
 
+  // SFX: instancias nuevas para disparos rápidos
   function playSfx(src, volume = 0.8) {
     if (muted) return;
     const s = new Audio(src);
@@ -294,11 +303,11 @@
 
   // --- Dibujo base ---
   function drawBackground(ts) {
-    // Importante: como el ctx ya está escalado a dpr en resizeCanvasToDisplaySize(),
-    // acá SIEMPRE trabajamos en W/H.
-    ctx.setTransform(1,0,0,1,0,0); // reset en coordenadas base
-    ctx.clearRect(0,0,W,H);
+    // Mantener DPR SIEMPRE (esto evita que se "achique" en móvil)
+    applyDprTransform();
+    ctx.clearRect(0, 0, W, H);
 
+    // miniestrellas fondo
     for (let i=0;i<18;i++){
       const x = (i * 63) % W;
       const y = ((i * 111) % 170) + 18;
@@ -310,6 +319,7 @@
     }
     ctx.globalAlpha = 1;
 
+    // ondas
     ctx.fillStyle = "rgba(124,58,237,.10)";
     ctx.beginPath();
     ctx.moveTo(0, H);
@@ -563,6 +573,9 @@
   }
 
   function drawEndOverlay() {
+    // Mantener DPR
+    applyDprTransform();
+
     ctx.fillStyle = "rgba(255,255,255,.60)";
     ctx.fillRect(0,0,W,H);
 
@@ -593,10 +606,11 @@
 
     drawBackground(ts);
 
+    // Shake: aplicar como transform adicional SIN perder DPR.
     if (shake > 0) {
       const sx = rand(-shake, shake);
       const sy = rand(-shake, shake);
-      ctx.translate(sx, sy);
+      ctx.translate(sx, sy); // translate sobre el transform DPR actual (ok)
     }
 
     drawStars(ts);
@@ -621,7 +635,7 @@
   });
 
   // --- Touch/Pointer: arrastrar ---
-  // IMPORTANTE: convertimos el punto del dedo a coordenadas base W/H (no canvas.width)
+  // IMPORTANTE: convertimos el punto del dedo a coordenadas base W/H
   function canvasPoint(evt) {
     const rect = canvas.getBoundingClientRect();
     const x = (evt.clientX - rect.left) * (W / rect.width);
@@ -684,3 +698,4 @@
   menu.hidden = false;
   gameWrap.hidden = true;
 })();
+```
