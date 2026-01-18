@@ -1,4 +1,3 @@
-```js
 (() => {
   // --- DOM ---
   const menu = document.getElementById("menu");
@@ -698,4 +697,3 @@
   menu.hidden = false;
   gameWrap.hidden = true;
 })();
-```
