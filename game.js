@@ -28,28 +28,19 @@
   const W = 900;
   const H = 520;
 
-  // --- HiDPI / Mobile sharpness (canvas interno) ---
-  let DPR = Math.max(1, window.devicePixelRatio || 1);
-
-  function applyDprTransform() {
-    // Siempre mantenemos el transform con DPR (NO 1,0,0,1)
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
+  // --- HiDPI ---
+  let dpr = 1;
 
   function resizeCanvasToDisplaySize() {
-    DPR = Math.max(1, window.devicePixelRatio || 1);
+    dpr = Math.max(1, window.devicePixelRatio || 1);
 
-    // Tamaño visual (CSS)
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
-    canvas.style.aspectRatio = `${W} / ${H}`;
+    // Tamaño interno nítido
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
 
-    // Buffer interno (nítido)
-    canvas.width = Math.floor(W * DPR);
-    canvas.height = Math.floor(H * DPR);
-
-    applyDprTransform();
-
+    // El tamaño visual lo define el CSS (width:100%; height:auto)
+    // No fuerces height aquí.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
   }
 
@@ -60,7 +51,7 @@
   function rand(min, max) { return Math.random() * (max - min) + min; }
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
-  // --- AUDIO (MP3) ---
+  // --- AUDIO ---
   const music = new Audio("fondo.mp3");
   music.loop = true;
   music.volume = 0.35;
@@ -77,7 +68,6 @@
   function stopMusic() { music.pause(); music.currentTime = 0; }
   function pauseMusic() { music.pause(); }
 
-  // SFX: instancias nuevas para disparos rápidos
   function playSfx(src, volume = 0.8) {
     if (muted) return;
     const s = new Audio(src);
@@ -87,7 +77,7 @@
   function playStar() { playSfx(sfxStarSrc, 0.75); }
   function playNube() { playSfx(sfxNubeSrc, 0.85); }
 
-  // --- Imágenes locales (misma carpeta) ---
+  // --- Images ---
   function loadImage(src) {
     const img = new Image();
     img.src = src;
@@ -106,7 +96,7 @@
 
   let selectedCharId = null;
 
-  // --- Menu grid (con mini-foto) ---
+  // --- Menu grid ---
   function renderCharacterGrid() {
     charGrid.innerHTML = "";
     for (const c of characters) {
@@ -165,7 +155,7 @@
   }
   playerNameInput.addEventListener("input", validateStart);
 
-  // --- Estado del juego ---
+  // --- Game state ---
   let running = false;
   let lastTs = 0;
 
@@ -249,7 +239,6 @@
   }
 
   function startGame() {
-    document.body.classList.add("playing");
     const chosen = characters.find(c => c.id === selectedCharId);
     const name = (playerNameInput.value || "").trim().slice(0,18);
 
@@ -267,7 +256,7 @@
     requestAnimationFrame(loop);
   }
 
-  function stopGame() { running = false; stopMusic(); document.body.classList.remove("playing"); }
+  function stopGame() { running = false; stopMusic(); }
 
   function backToMenu() {
     stopGame();
@@ -301,13 +290,15 @@
     });
   }
 
-  // --- Dibujo base ---
-  function drawBackground(ts) {
-    // Mantener DPR SIEMPRE (esto evita que se "achique" en móvil)
-    applyDprTransform();
+  // --- Draw ---
+  function beginFrame() {
+    // SIEMPRE reinstalar transform HiDPI
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
+  }
 
-    // miniestrellas fondo
+  function drawBackground(ts) {
+    // miniestrellas del fondo
     for (let i=0;i<18;i++){
       const x = (i * 63) % W;
       const y = ((i * 111) % 170) + 18;
@@ -319,7 +310,7 @@
     }
     ctx.globalAlpha = 1;
 
-    // ondas
+    // ondas suaves
     ctx.fillStyle = "rgba(124,58,237,.10)";
     ctx.beginPath();
     ctx.moveTo(0, H);
@@ -541,8 +532,7 @@
         playStar();
         return false;
       }
-      if (st.y - st.r > H + 10) return false;
-      return true;
+      return !(st.y - st.r > H + 10);
     });
 
     clouds = clouds.filter(cl => {
@@ -554,8 +544,7 @@
         loseLife();
         return false;
       }
-      if (cl.y - cl.r > H + 10) return false;
-      return true;
+      return !(cl.y - cl.r > H + 10);
     });
 
     particles = particles.filter(p => {
@@ -573,27 +562,22 @@
   }
 
   function drawEndOverlay() {
-    // Mantener DPR
-    applyDprTransform();
-
     ctx.fillStyle = "rgba(255,255,255,.60)";
     ctx.fillRect(0,0,W,H);
 
     ctx.textAlign = "center";
-
     const win = (timeLeft <= 0 && lives > 0);
-    const title = win ? "¡Felicitaciones!" : "Uy… esta vez no salió";
-    const subtitle = win
-      ? "Terminaste el juego. ¿Jugamos otra vez?"
-      : "Te quedaste sin vidas. Tocá Reiniciar para jugar de nuevo.";
 
     ctx.fillStyle = "rgba(17,24,39,.88)";
     ctx.font = "900 34px system-ui";
-    ctx.fillText(title, W/2, H/2 - 28);
+    ctx.fillText(win ? "¡Felicitaciones!" : "Uy… esta vez no salió", W/2, H/2 - 28);
 
     ctx.fillStyle = "rgba(17,24,39,.72)";
     ctx.font = "800 16px system-ui";
-    ctx.fillText(subtitle, W/2, H/2 + 4);
+    ctx.fillText(
+      win ? "Terminaste el juego. ¿Jugamos otra vez?" : "Te quedaste sin vidas. Tocá Reiniciar para jugar de nuevo.",
+      W/2, H/2 + 4
+    );
 
     ctx.fillStyle = "rgba(17,24,39,.70)";
     ctx.font = "900 18px system-ui";
@@ -604,19 +588,20 @@
     const dt = lastTs ? (ts - lastTs) / 1000 : 0;
     lastTs = ts;
 
+    beginFrame();
     drawBackground(ts);
 
-    // Shake: aplicar como transform adicional SIN perder DPR.
+    // shake sin romper transform
+    ctx.save();
     if (shake > 0) {
-      const sx = rand(-shake, shake);
-      const sy = rand(-shake, shake);
-      ctx.translate(sx, sy); // translate sobre el transform DPR actual (ok)
+      ctx.translate(rand(-shake, shake), rand(-shake, shake));
     }
 
     drawStars(ts);
     drawClouds(ts);
     drawParticles();
     drawPlayer();
+    ctx.restore();
 
     if (running) update(dt);
     else if (!gameWrap.hidden) drawEndOverlay();
@@ -624,7 +609,7 @@
     if (!gameWrap.hidden) requestAnimationFrame(loop);
   }
 
-  // --- Teclado ---
+  // --- Keyboard ---
   window.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") keys.left = true;
     if (e.key === "ArrowRight") keys.right = true;
@@ -634,8 +619,7 @@
     if (e.key === "ArrowRight") keys.right = false;
   });
 
-  // --- Touch/Pointer: arrastrar ---
-  // IMPORTANTE: convertimos el punto del dedo a coordenadas base W/H
+  // --- Pointer / touch ---
   function canvasPoint(evt) {
     const rect = canvas.getBoundingClientRect();
     const x = (evt.clientX - rect.left) * (W / rect.width);
@@ -662,8 +646,7 @@
   canvas.addEventListener("pointermove", (evt) => {
     if (!player.dragging) return;
     const p = canvasPoint(evt);
-    player.x = p.x - player.dragOffsetX;
-    player.x = clamp(player.x, player.r + 8, W - player.r - 8);
+    player.x = clamp(p.x - player.dragOffsetX, player.r + 8, W - player.r - 8);
   });
 
   canvas.addEventListener("pointerup", () => { player.dragging = false; });
@@ -684,7 +667,6 @@
     muted = !muted;
     muteBtn.setAttribute("aria-pressed", String(muted));
     muteBtn.textContent = `Sonido: ${muted ? "OFF" : "ON"}`;
-
     if (muted) pauseMusic();
     else if (running) playMusic();
   });
@@ -698,4 +680,3 @@
   menu.hidden = false;
   gameWrap.hidden = true;
 })();
-
