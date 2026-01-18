@@ -249,6 +249,7 @@
   }
 
   function startGame() {
+    document.body.classList.add("playing");
     const chosen = characters.find(c => c.id === selectedCharId);
     const name = (playerNameInput.value || "").trim().slice(0,18);
 
@@ -266,7 +267,7 @@
     requestAnimationFrame(loop);
   }
 
-  function stopGame() { running = false; stopMusic(); }
+  function stopGame() { running = false; stopMusic(); document.body.classList.remove("playing"); }
 
   function backToMenu() {
     stopGame();
@@ -697,3 +698,4 @@
   menu.hidden = false;
   gameWrap.hidden = true;
 })();
+
