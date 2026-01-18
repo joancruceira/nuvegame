@@ -248,3 +248,28 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
   .hud{ font-size: 13px; }
   .hint{ font-size: 13px; }
 }
+/* ===== Portada responsive (Nuvecielas) ===== */
+
+.brand{
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* Imagen de portada */
+.brand-img{
+  width: 100%;
+  max-width: 100%;
+  height: clamp(120px, 22vw, 180px); /* mobile → desktop */
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+/* En pantallas muy chicas priorizamos altura */
+@media (max-width: 480px){
+  .brand-img{
+    height: 120px;
+  }
+}
+
