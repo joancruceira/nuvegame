@@ -267,3 +267,16 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
   }
 }
 
+html, body {
+  height: 100%;
+}
+
+.wrap{
+  min-height: 100vh;   /* ocupa todo el viewport */
+  display: flex;
+  flex-direction: column;
+}
+
+#gameWrap{
+  flex: 1 1 auto;
+}
