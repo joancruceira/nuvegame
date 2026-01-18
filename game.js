@@ -3,7 +3,7 @@
   const menu = document.getElementById("menu");
   const gameWrap = document.getElementById("gameWrap");
   const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: true });
 
   const charGrid = document.getElementById("charGrid");
   const playerNameInput = document.getElementById("playerName");
@@ -24,17 +24,40 @@
   const closeHelp = document.getElementById("closeHelp");
   const menuNote = document.getElementById("menuNote");
 
+  // --- BASE LOGIC SIZE (NO CAMBIA) ---
+  const W = 900;
+  const H = 520;
+
+  // --- HiDPI / Mobile sharpness (canvas interno) ---
+  function resizeCanvasToDisplaySize() {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+    // CSS responsive (el tamaño visual lo define CSS)
+    canvas.style.width = "100%";
+    canvas.style.height = "auto";
+
+    // Tamaño interno nítido
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+
+    // Trabajamos en coordenadas base W/H
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Opcional: mejora calidad de imágenes al escalar
+    ctx.imageSmoothingEnabled = true;
+  }
+  resizeCanvasToDisplaySize();
+  window.addEventListener("resize", resizeCanvasToDisplaySize);
+
   // --- Helpers ---
   function rand(min, max) { return Math.random() * (max - min) + min; }
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
   // --- AUDIO (MP3) ---
-  // Nota: en móviles, el audio puede requerir interacción del usuario (click/tap) para arrancar.
   const music = new Audio("fondo.mp3");
   music.loop = true;
   music.volume = 0.35;
 
-  // Para permitir múltiples disparos rápidos, usamos "cloneNode" al reproducir sfx
   const sfxStarSrc = "star.mp3";
   const sfxNubeSrc = "nube.mp3";
 
@@ -42,28 +65,17 @@
 
   function playMusic() {
     if (muted) return;
-    // no reiniciamos siempre a 0: solo si estaba detenida
-    if (music.paused) {
-      music.play().catch(() => {});
-    }
+    if (music.paused) music.play().catch(() => {});
   }
-
-  function stopMusic() {
-    music.pause();
-    music.currentTime = 0;
-  }
-
-  function pauseMusic() {
-    music.pause();
-  }
+  function stopMusic() { music.pause(); music.currentTime = 0; }
+  function pauseMusic() { music.pause(); }
 
   function playSfx(src, volume = 0.8) {
     if (muted) return;
-    const s = new Audio(src); // simple y robusto
+    const s = new Audio(src);
     s.volume = volume;
     s.play().catch(() => {});
   }
-
   function playStar() { playSfx(sfxStarSrc, 0.75); }
   function playNube() { playSfx(sfxNubeSrc, 0.85); }
 
@@ -81,15 +93,12 @@
     { id:"nuve",      label:"Nuve",      desc:"La valiente",  colorA:"rgba(167,139,250,.22)", colorB:"rgba(16,185,129,.18)", initial:"N", imageSrc:"nuve.png" },
   ];
 
-  // cache de imágenes
   const imageCache = new Map();
-  for (const c of characters) {
-    imageCache.set(c.id, loadImage(c.imageSrc));
-  }
+  for (const c of characters) imageCache.set(c.id, loadImage(c.imageSrc));
 
   let selectedCharId = null;
 
-  // Render menú personajes (con mini-foto)
+  // --- Menu grid (con mini-foto) ---
   function renderCharacterGrid() {
     charGrid.innerHTML = "";
     for (const c of characters) {
@@ -98,14 +107,11 @@
       btn.className = "char";
       btn.setAttribute("aria-selected", "false");
 
-      // Avatar: mini imagen circular si está lista; fallback a inicial
       const av = document.createElement("div");
       av.className = "avatar";
       av.style.background = `linear-gradient(135deg, ${c.colorA}, ${c.colorB})`;
       av.style.overflow = "hidden";
-      av.style.position = "relative";
 
-      const img = imageCache.get(c.id);
       const imgEl = document.createElement("img");
       imgEl.alt = c.label;
       imgEl.src = c.imageSrc;
@@ -114,7 +120,6 @@
       imgEl.style.objectFit = "cover";
       imgEl.style.display = "block";
 
-      // Si la imagen falla, mostramos inicial
       imgEl.onerror = () => {
         av.textContent = c.initial;
         av.style.display = "grid";
@@ -160,7 +165,6 @@
   let timeLeft = 60;
   let lives = 3;
 
-  // niveles: cada 15s sube (1..4)
   let level = 1;
   const LEVEL_STEP = 15;
   const MAX_LEVEL = 4;
@@ -169,8 +173,8 @@
   let shake = 0;
 
   const player = {
-    x: canvas.width * 0.5,
-    y: canvas.height - 70,
+    x: W * 0.5,
+    y: H - 70,
     r: 28,
     speed: 460,
     name: "",
@@ -199,7 +203,6 @@
     if (newLevel !== level) {
       level = newLevel;
       levelHud.textContent = String(level);
-      // sonido de "sube nivel" usando star.mp3 suave (si querés otro, lo cambiamos)
       playSfx(sfxStarSrc, 0.35);
     }
   }
@@ -230,8 +233,9 @@
     cloudSpawnAcc = 0;
     shake = 0;
 
-    player.x = canvas.width * 0.5;
-    player.y = canvas.height - 70;
+    player.x = W * 0.5;
+    player.y = H - 70;
+    player.dragging = false;
 
     resetHUD();
   }
@@ -254,10 +258,7 @@
     requestAnimationFrame(loop);
   }
 
-  function stopGame() {
-    running = false;
-    stopMusic();
-  }
+  function stopGame() { running = false; stopMusic(); }
 
   function backToMenu() {
     stopGame();
@@ -271,7 +272,7 @@
     const s = settingsForLevel(lvl);
     const r = rand(14, 22);
     stars.push({
-      x: rand(r+10, canvas.width - r - 10),
+      x: rand(r+10, W - r - 10),
       y: -r - 10,
       r,
       vy: rand(s.starSpeedMin, s.starSpeedMax),
@@ -283,7 +284,7 @@
     const s = settingsForLevel(lvl);
     const r = rand(22, 34);
     clouds.push({
-      x: rand(r+10, canvas.width - r - 10),
+      x: rand(r+10, W - r - 10),
       y: -r - 10,
       r,
       vy: rand(s.cloudSpeedMin, s.cloudSpeedMax),
@@ -293,11 +294,13 @@
 
   // --- Dibujo base ---
   function drawBackground(ts) {
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // Importante: como el ctx ya está escalado a dpr en resizeCanvasToDisplaySize(),
+    // acá SIEMPRE trabajamos en W/H.
+    ctx.setTransform(1,0,0,1,0,0); // reset en coordenadas base
+    ctx.clearRect(0,0,W,H);
 
     for (let i=0;i<18;i++){
-      const x = (i * 63) % canvas.width;
+      const x = (i * 63) % W;
       const y = ((i * 111) % 170) + 18;
       ctx.globalAlpha = 0.22;
       ctx.fillStyle = "#111827";
@@ -309,25 +312,25 @@
 
     ctx.fillStyle = "rgba(124,58,237,.10)";
     ctx.beginPath();
-    ctx.moveTo(0, canvas.height);
-    ctx.lineTo(0, canvas.height - 110);
-    for (let x=0; x<=canvas.width; x+=18){
-      const y = canvas.height - 110 + Math.sin((x/110) + ts/900) * 14;
+    ctx.moveTo(0, H);
+    ctx.lineTo(0, H - 110);
+    for (let x=0; x<=W; x+=18){
+      const y = H - 110 + Math.sin((x/110) + ts/900) * 14;
       ctx.lineTo(x,y);
     }
-    ctx.lineTo(canvas.width, canvas.height);
+    ctx.lineTo(W, H);
     ctx.closePath();
     ctx.fill();
 
     ctx.fillStyle = "rgba(6,182,212,.10)";
     ctx.beginPath();
-    ctx.moveTo(0, canvas.height);
-    ctx.lineTo(0, canvas.height - 70);
-    for (let x=0; x<=canvas.width; x+=18){
-      const y = canvas.height - 70 + Math.sin((x/95) + ts/820 + 1.2) * 10;
+    ctx.moveTo(0, H);
+    ctx.lineTo(0, H - 70);
+    for (let x=0; x<=W; x+=18){
+      const y = H - 70 + Math.sin((x/95) + ts/820 + 1.2) * 10;
       ctx.lineTo(x,y);
     }
-    ctx.lineTo(canvas.width, canvas.height);
+    ctx.lineTo(W, H);
     ctx.closePath();
     ctx.fill();
   }
@@ -368,7 +371,6 @@
     const c = player.char;
     if (!c) return;
 
-    // halo
     const grad = ctx.createLinearGradient(player.x - player.r, player.y - player.r, player.x + player.r, player.y + player.r);
     grad.addColorStop(0, c.colorA);
     grad.addColorStop(1, c.colorB);
@@ -378,7 +380,6 @@
     ctx.arc(player.x, player.y, player.r+3, 0, Math.PI*2);
     ctx.fill();
 
-    // círculo del avatar
     ctx.beginPath();
     ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
     ctx.closePath();
@@ -470,9 +471,8 @@
       ctx.fillStyle = p.kind === "spark"
         ? "rgba(251,191,36,0.95)"
         : "rgba(124,58,237,0.35)";
-      if (p.kind === "spark") {
-        drawStarShape(p.x, p.y, p.r);
-      } else {
+      if (p.kind === "spark") drawStarShape(p.x, p.y, p.r);
+      else {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
         ctx.fill();
@@ -492,12 +492,8 @@
     lives -= 1;
     livesEl.textContent = String(lives);
     shake = 10;
-
     playNube();
-
-    if (lives <= 0) {
-      stopGame();
-    }
+    if (lives <= 0) stopGame();
   }
 
   function update(dt) {
@@ -516,22 +512,15 @@
     starSpawnAcc += dt;
     cloudSpawnAcc += dt;
 
-    if (starSpawnAcc >= s.starEvery) {
-      starSpawnAcc = 0;
-      spawnStar(level);
-    }
-    if (cloudSpawnAcc >= s.cloudEvery) {
-      cloudSpawnAcc = 0;
-      spawnCloud(level);
-    }
+    if (starSpawnAcc >= s.starEvery) { starSpawnAcc = 0; spawnStar(level); }
+    if (cloudSpawnAcc >= s.cloudEvery) { cloudSpawnAcc = 0; spawnCloud(level); }
 
     if (!player.dragging) {
       const dir = (keys.left ? -1 : 0) + (keys.right ? 1 : 0);
       player.x += dir * player.speed * dt;
     }
-    player.x = clamp(player.x, player.r + 8, canvas.width - player.r - 8);
+    player.x = clamp(player.x, player.r + 8, W - player.r - 8);
 
-    // estrellas
     stars = stars.filter(st => {
       st.y += st.vy * dt;
 
@@ -542,12 +531,10 @@
         playStar();
         return false;
       }
-
-      if (st.y - st.r > canvas.height + 10) return false;
+      if (st.y - st.r > H + 10) return false;
       return true;
     });
 
-    // nubes
     clouds = clouds.filter(cl => {
       cl.y += cl.vy * dt;
 
@@ -557,12 +544,10 @@
         loseLife();
         return false;
       }
-
-      if (cl.y - cl.r > canvas.height + 10) return false;
+      if (cl.y - cl.r > H + 10) return false;
       return true;
     });
 
-    // partículas
     particles = particles.filter(p => {
       p.life -= dt;
       p.x += p.vx * dt;
@@ -579,7 +564,7 @@
 
   function drawEndOverlay() {
     ctx.fillStyle = "rgba(255,255,255,.60)";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillRect(0,0,W,H);
 
     ctx.textAlign = "center";
 
@@ -591,15 +576,15 @@
 
     ctx.fillStyle = "rgba(17,24,39,.88)";
     ctx.font = "900 34px system-ui";
-    ctx.fillText(title, canvas.width/2, canvas.height/2 - 28);
+    ctx.fillText(title, W/2, H/2 - 28);
 
     ctx.fillStyle = "rgba(17,24,39,.72)";
     ctx.font = "800 16px system-ui";
-    ctx.fillText(subtitle, canvas.width/2, canvas.height/2 + 4);
+    ctx.fillText(subtitle, W/2, H/2 + 4);
 
     ctx.fillStyle = "rgba(17,24,39,.70)";
     ctx.font = "900 18px system-ui";
-    ctx.fillText(`Puntaje final: ${score}`, canvas.width/2, canvas.height/2 + 34);
+    ctx.fillText(`Puntaje final: ${score}`, W/2, H/2 + 34);
   }
 
   function loop(ts) {
@@ -625,7 +610,7 @@
     if (!gameWrap.hidden) requestAnimationFrame(loop);
   }
 
-  // --- Controles teclado ---
+  // --- Teclado ---
   window.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") keys.left = true;
     if (e.key === "ArrowRight") keys.right = true;
@@ -635,13 +620,15 @@
     if (e.key === "ArrowRight") keys.right = false;
   });
 
-  // --- Controles móvil: arrastrar personaje ---
+  // --- Touch/Pointer: arrastrar ---
+  // IMPORTANTE: convertimos el punto del dedo a coordenadas base W/H (no canvas.width)
   function canvasPoint(evt) {
     const rect = canvas.getBoundingClientRect();
-    const x = (evt.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (evt.clientY - rect.top) * (canvas.height / rect.height);
+    const x = (evt.clientX - rect.left) * (W / rect.width);
+    const y = (evt.clientY - rect.top) * (H / rect.height);
     return {x,y};
   }
+
   function hitPlayer(x,y){
     const dx = x - player.x;
     const dy = y - player.y;
@@ -662,7 +649,7 @@
     if (!player.dragging) return;
     const p = canvasPoint(evt);
     player.x = p.x - player.dragOffsetX;
-    player.x = clamp(player.x, player.r + 8, canvas.width - player.r - 8);
+    player.x = clamp(player.x, player.r + 8, W - player.r - 8);
   });
 
   canvas.addEventListener("pointerup", () => { player.dragging = false; });
@@ -684,11 +671,8 @@
     muteBtn.setAttribute("aria-pressed", String(muted));
     muteBtn.textContent = `Sonido: ${muted ? "OFF" : "ON"}`;
 
-    if (muted) {
-      pauseMusic();
-    } else {
-      if (running) playMusic();
-    }
+    if (muted) pauseMusic();
+    else if (running) playMusic();
   });
 
   howBtn.addEventListener("click", () => helpDialog.showModal());
