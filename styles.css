@@ -20,12 +20,19 @@ body{
               var(--bg);
 }
 
+/* ==== Layout base ==== */
 .wrap{
   max-width: 980px;
   margin: 0 auto;
   padding: 18px;
+
+  /* CLAVE: permite que el juego “estire” */
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
 }
 
+/* ==== Top bar ==== */
 .topbar{
   display:flex;
   gap:12px;
@@ -39,15 +46,23 @@ body{
   padding: 12px 14px;
 }
 
-.brand{display:flex; align-items:center; gap:10px; font-weight: 780;}
-.logo{
-  width:34px; height:34px;
-  display:grid; place-items:center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(124,58,237,.22), rgba(6,182,212,.22));
-  border: 1px solid rgba(0,0,0,.06);
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight: 780;
 }
 
+/* Portada */
+.brand-img{
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  display:block;
+  object-fit: contain;
+}
+
+/* HUD */
 .hud{
   display:flex;
   gap:14px;
@@ -57,6 +72,7 @@ body{
 }
 .hud strong{color:var(--ink)}
 
+/* ==== Cards ==== */
 .card{
   margin-top: 14px;
   background: var(--card);
@@ -119,6 +135,7 @@ body{
   border:1px solid rgba(0,0,0,.10);
   padding: 10px 12px;
   font-weight: 650;
+  font-size: 16px; /* evita zoom en Android */
 }
 
 button{
@@ -147,10 +164,38 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
   font-size: 12px;
   color: var(--muted);
 }
+.note.small{font-size:11px; opacity:.9}
 
+.footer{
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align:center;
+}
+
+/* ==== GAME: QUE NO QUEDE “CHICO” ==== */
+
+/* CLAVE: el contenedor del juego debe poder crecer */
+#gameWrap{
+  flex: 1 1 auto;              /* toma el alto libre en .wrap */
+  display: flex;
+  flex-direction: column;
+}
+
+/* el canvas debe ocupar el mayor alto posible */
+.card.game{
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Canvas: ancho 100% y alto grande (sin deformarse) */
 .game #canvas{
-  width:100%;
-  height:auto;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 900 / 520;     /* mantiene proporción */
+  flex: 1 1 auto;              /* empuja a crecer */
   border-radius: 14px;
   border:1px solid rgba(0,0,0,.06);
   background: linear-gradient(180deg, #eaf6ff, #fff);
@@ -158,9 +203,10 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
   display:block;
 }
 
-.hint{margin-top:8px; color:var(--muted); font-size:12px}
-.footer{margin-top: 14px; color: var(--muted); font-size: 12px; text-align:center}
+/* Hint y botones no deben “aplastar” demasiado */
+.hint{margin-top:0; color:var(--muted); font-size:12px}
 
+/* ==== Dialog ==== */
 .dialog{
   border:none;
   border-radius: 18px;
@@ -171,112 +217,54 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
 .dialog::backdrop{background: rgba(0,0,0,.35)}
 .dialog ul{margin: 8px 0 12px 18px; color: var(--muted)}
 
-.note.small{font-size:11px; opacity:.9}
-
-
-/*responsive*/
-
-/* --- Mobile friendly / responsive --- */
-.wrap{
-  padding: 12px;
-}
-
-/* HUD y barra superior más apilables */
-.topbar{
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.hud{
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  justify-content: flex-start;
-  font-size: 14px;
-}
-
-/* Botones y campos más "tocables" */
-.input{
-  font-size: 16px;          /* evita zoom automático en Android/Chrome */
-  padding: 12px 14px;
-}
-.primary, .ghost{
-  padding: 12px 14px;
-  font-size: 16px;
-}
-
-/* Grilla de personajes: 2 columnas en móvil */
-.grid{
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-/* Botones de personajes: más compactos y con avatar consistente */
-.char{
-  padding: 10px;
-  gap: 10px;
-}
-.avatar{
-  width: 54px;
-  height: 54px;
-  border-radius: 16px;
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-
-/* Zona del juego: el canvas se adapta al ancho */
-.card.game{
-  padding: 10px;
-}
-#canvas{
-  width: 100%;
-  height: auto;             /* mantiene proporción */
-  display: block;
-  border-radius: 16px;
-  touch-action: none;       /* evita scroll/zoom mientras arrastras */
-}
-
-/* En pantallas muy chicas, reducimos un poco textos */
-@media (max-width: 420px){
-  .title{ font-size: 22px; }
-  .subtitle{ font-size: 13px; }
-  .hud{ font-size: 13px; }
-  .hint{ font-size: 13px; }
-}
-/* ===== FIX DEFINITIVO PORTADA EN MOVIL ===== */
+/* ===================== MOBILE ===================== */
 @media (max-width: 600px){
-  .brand{
-    display: flex;
-    flex-direction: column;   /* clave: la imagen abajo/arriba ocupando todo */
-    align-items: stretch;
-    gap: 8px;
-    width: 100%;
+  .wrap{
+    padding: 10px;
+    min-height: 100svh;
   }
 
-  .brand > span{
-    display: none;            /* opcional: si no querés el texto duplicado */
+  .topbar{
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .brand{
+    width: 100%;
+    justify-content: space-between;
   }
 
   .brand-img{
-    width: 100%;
     max-width: 100%;
-    height: 140px;            /* altura controlada tipo banner */
-    object-fit: contain;      /* NO recorta */
-    object-position: center;
-    display: block;
+    max-height: 140px;
+  }
+
+  .hud{
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px 10px;
+  }
+
+  /* En móvil: queremos que el canvas sea protagonista */
+  .hint{
+    font-size: 12px;
+  }
+
+  .row{
+    gap: 10px;
+  }
+
+  /* Opcional: si querés, ocultar el footer en móvil para ganar alto */
+  .footer{
+    display: none;
   }
 }
 
-html, body {
-  height: 100%;
-}
-
-.wrap{
-  min-height: 100vh;   /* ocupa todo el viewport */
-  display: flex;
-  flex-direction: column;
-}
-
-#gameWrap{
-  flex: 1 1 auto;
+/* Extra chico */
+@media (max-width: 420px){
+  .title{ font-size: 20px; }
+  .subtitle{ font-size: 13px; }
+  .hud{ font-size: 13px; }
 }
