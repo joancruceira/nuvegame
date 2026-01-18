@@ -170,17 +170,17 @@
   const keys = { left:false, right:false };
   let shake = 0;
 
+  const isMobile = window.innerWidth < 600;
   const player = {
-    x: W * 0.5,
-    y: H - 70,
-    r: 36,
-    r: window.innerWidth < 600 ? 42 : 34,
-    speed: 460,
-    name: "",
-    char: null,
-    dragging: false,
-    dragOffsetX: 0
-  };
+  x: W * 0.5,
+  y: H - 70,
+  r: isMobile ? 42 : 34,
+  speed: 460,
+  name: "",
+  char: null,
+  dragging: false,
+  dragOffsetX: 0
+};
 
   let stars = [];
   let clouds = [];
@@ -681,4 +681,5 @@
   menu.hidden = false;
   gameWrap.hidden = true;
 })();
+
 
