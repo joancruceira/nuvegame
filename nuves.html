@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Nuvecielas — Atrapa Estrellas</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <span>Nuvecielas</span>
+  <img src="portada.png" alt="Nuvecielas" class="brand-img">
+</div>
+      <div class="hud">
+        <div>Jugador: <strong id="playerNameHud">—</strong></div>
+        <div>Nivel: <strong id="levelHud">1</strong></div>
+        <div>Puntaje: <strong id="score">0</strong></div>
+        <div>Vidas: <strong id="lives">3</strong></div>
+        <div>Tiempo: <strong id="time">60</strong>s</div>
+      </div>
+    </header>
+
+    <!-- PANTALLA PRINCIPAL -->
+    <section class="card" id="menu">
+      <h1 class="title">Elegí tu jugadora</h1>
+      <p class="subtitle">PC: flechas ← →. Móvil: arrastrá al personaje con el dedo.</p>
+
+      <div class="grid" id="charGrid"></div>
+
+      <div class="row">
+        <label class="label" for="playerName">Escribe tu nombre:</label>
+        <input id="playerName" class="input" placeholder="Tu nombre" maxlength="18" />
+      </div>
+
+      <div class="row">
+        <button id="startBtn" class="primary" disabled>Ok, empezar</button>
+        <button id="howBtn" class="ghost">Cómo se juega</button>
+      </div>
+
+      <div class="note" id="menuNote">Elegí un personaje y escribí tu nombre.</div>
+      <div class="note small">Imágenes esperadas en la carpeta: nuveciela.png, ciela.png, lunaria.png, nuve.png</div>
+    </section>
+
+    <!-- JUEGO -->
+    <section class="card game" id="gameWrap" hidden>
+      <canvas id="canvas" width="900" height="520"></canvas>
+      <div class="hint">
+        Atrapá estrellas para sumar puntos. Evitá nubes oscuras (quitan vidas).
+      </div>
+      <div class="row">
+        <button id="restartBtn" class="ghost">Reiniciar</button>
+        <button id="backBtn" class="ghost">Volver al menú</button>
+        <button id="muteBtn" class="ghost" aria-pressed="false">Sonido: ON</button>
+      </div>
+    </section>
+
+    <dialog id="helpDialog" class="dialog">
+      <h2>Cómo se juega</h2>
+      <ul>
+        <li>Elegí personaje y escribí tu nombre.</li>
+        <li>En PC movete con ← →.</li>
+        <li>En móvil arrastrá al personaje con el dedo.</li>
+        <li>⭐ Estrellas suman puntos y explotan en estrellitas.</li>
+        <li>☁ Nubes oscuras quitan vidas.</li>
+        <li>La dificultad sube por niveles.</li>
+      </ul>
+      <button id="closeHelp" class="primary">Ok</button>
+    </dialog>
+
+    <footer class="footer">Hecho con HTML/CSS/JS — Nuvecielas</footer>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>
