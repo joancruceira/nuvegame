@@ -178,3 +178,73 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
   width:auto;
   display:block;
 }
+
+/*responsive*/
+
+/* --- Mobile friendly / responsive --- */
+.wrap{
+  padding: 12px;
+}
+
+/* HUD y barra superior más apilables */
+.topbar{
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.hud{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: flex-start;
+  font-size: 14px;
+}
+
+/* Botones y campos más "tocables" */
+.input{
+  font-size: 16px;          /* evita zoom automático en Android/Chrome */
+  padding: 12px 14px;
+}
+.primary, .ghost{
+  padding: 12px 14px;
+  font-size: 16px;
+}
+
+/* Grilla de personajes: 2 columnas en móvil */
+.grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* Botones de personajes: más compactos y con avatar consistente */
+.char{
+  padding: 10px;
+  gap: 10px;
+}
+.avatar{
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+/* Zona del juego: el canvas se adapta al ancho */
+.card.game{
+  padding: 10px;
+}
+#canvas{
+  width: 100%;
+  height: auto;             /* mantiene proporción */
+  display: block;
+  border-radius: 16px;
+  touch-action: none;       /* evita scroll/zoom mientras arrastras */
+}
+
+/* En pantallas muy chicas, reducimos un poco textos */
+@media (max-width: 420px){
+  .title{ font-size: 22px; }
+  .subtitle{ font-size: 13px; }
+  .hud{ font-size: 13px; }
+  .hint{ font-size: 13px; }
+}
