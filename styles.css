@@ -248,28 +248,30 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
   .hud{ font-size: 13px; }
   .hint{ font-size: 13px; }
 }
-/* ===== Portada responsive (Nuvecielas) ===== */
+/* ===== FIX REAL: la portada debe comportarse como banner en móvil ===== */
+@media (max-width: 600px){
+  .topbar{
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
 
-.brand{
-  width: 100%;
-  display: flex;
-  align-items: center;
-}
+  .brand{
+    width: 100%;
+  }
 
-/* Imagen de portada */
-.brand-img{
-  width: 100%;
-  max-width: 100%;
-  height: clamp(120px, 22vw, 180px); /* mobile → desktop */
-  object-fit: contain;
-  object-position: center;
-  display: block;
-}
-
-/* En pantallas muy chicas priorizamos altura */
-@media (max-width: 480px){
   .brand-img{
-    height: 120px;
+    width: 100%;
+    height: auto;          /* banner fluido */
+    max-height: 160px;     /* evita que “se coma” la pantalla */
+    object-fit: contain;
+    display: block;
+  }
+
+  .hud{
+    width: 100%;
+    justify-content: space-between;
   }
 }
+
 
