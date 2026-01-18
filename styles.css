@@ -11,13 +11,15 @@
 
 *{box-sizing:border-box}
 html,body{height:100%}
+
 body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Arial, "Noto Sans";
   color:var(--ink);
-  background: radial-gradient(1200px 800px at 20% 10%, rgba(124,58,237,.12), transparent 60%),
-              radial-gradient(900px 700px at 85% 30%, rgba(6,182,212,.12), transparent 55%),
-              var(--bg);
+  background:
+    radial-gradient(1200px 800px at 20% 10%, rgba(124,58,237,.12), transparent 60%),
+    radial-gradient(900px 700px at 85% 30%, rgba(6,182,212,.12), transparent 55%),
+    var(--bg);
 }
 
 /* ==== Layout base ==== */
@@ -25,11 +27,6 @@ body{
   max-width: 980px;
   margin: 0 auto;
   padding: 18px;
-
-  /* CLAVE: permite que el juego “estire” */
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
 }
 
 /* ==== Top bar ==== */
@@ -46,14 +43,15 @@ body{
   padding: 12px 14px;
 }
 
+/* Brand + portada */
 .brand{
   display:flex;
   align-items:center;
   gap:10px;
   font-weight: 780;
+  min-width: 0;
 }
 
-/* Portada */
 .brand-img{
   width: 100%;
   max-width: 320px;
@@ -85,6 +83,7 @@ body{
 .title{margin:0 0 6px 0; font-size: 20px}
 .subtitle{margin:0 0 12px 0; color:var(--muted); font-size: 13px}
 
+/* ==== Menú personajes ==== */
 .grid{
   display:grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -108,6 +107,7 @@ body{
   outline: 3px solid rgba(124,58,237,.28);
   border-color: rgba(124,58,237,.35);
 }
+
 .avatar{
   width:44px; height:44px;
   border-radius: 16px;
@@ -115,6 +115,7 @@ body{
   display:grid; place-items:center;
   font-weight: 800;
   overflow: hidden;
+  flex: 0 0 auto;
 }
 .char .meta{display:flex; flex-direction:column; gap:2px}
 .char .name{font-weight: 780}
@@ -135,9 +136,10 @@ body{
   border:1px solid rgba(0,0,0,.10);
   padding: 10px 12px;
   font-weight: 650;
-  font-size: 16px; /* evita zoom en Android */
+  font-size: 16px;
 }
 
+/* Botones */
 button{
   border-radius: 14px;
   border:1px solid rgba(0,0,0,.10);
@@ -166,6 +168,8 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
 }
 .note.small{font-size:11px; opacity:.9}
 
+.hint{margin-top:8px; color:var(--muted); font-size:12px}
+
 .footer{
   margin-top: 14px;
   color: var(--muted);
@@ -174,62 +178,75 @@ button:disabled{opacity:.55; cursor:not-allowed; transform:none}
 }
 
 /* =========================
-   GAME: tamaño correcto (PC y móvil)
+   GAME (la parte crítica)
    ========================= */
 
-/* El contenedor principal ya es flex-col.
-   Hacemos que el juego use el alto disponible. */
-#gameWrap{
-  flex: 1 1 auto;
-  min-height: 0; /* CLAVE para que los hijos flex puedan encogerse/crecer bien */
+/* Aseguramos que la card del juego sea normal (NO flex forzado) */
+.card.game{
+  padding: 14px;
 }
 
-/* La card del juego como columna */
-#gameWrap.card.game{
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* Canvas: ocupa "la mayor parte de la pantalla"
-   sin depender de aspect-ratio + height:auto */
-#gameWrap #canvas{
+/* Canvas: ancho 100%, altura por ratio (sin deformación) */
+.game #canvas{
   width: 100%;
+  height: auto;
   display: block;
 
-  /* CLAVE: altura real en viewport */
-  height: min(70vh, 680px);
+  /* Mantiene proporción correcta SIEMPRE */
+  aspect-ratio: 900 / 520;
 
-  /* para que no se pase en pantallas bajas */
+  /* Para que se vea grande, sin romper el layout */
   max-height: 72vh;
 
-  /* mantiene estética */
   border-radius: 14px;
-  border: 1px solid rgba(0,0,0,.06);
+  border:1px solid rgba(0,0,0,.06);
   background: linear-gradient(180deg, #eaf6ff, #fff);
-
   touch-action: none;
 }
 
-/* En pantallas grandes, aún más protagonista */
+/* En pantallas grandes, dejalo un poco más grande */
 @media (min-width: 1024px){
-  #gameWrap #canvas{
-    height: min(76vh, 760px);
+  .game #canvas{
     max-height: 78vh;
   }
 }
 
-/* En móvil: casi full screen */
+/* =========================
+   RESPONSIVE
+   ========================= */
 @media (max-width: 600px){
-  #gameWrap #canvas{
-    height: 58vh;      /* deja espacio a HUD + botones */
-    max-height: 60vh;
+  .wrap{ padding: 10px; }
+
+  .topbar{
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .brand{
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .brand-img{
+    max-width: 100%;
+    max-height: 140px;
+  }
+
+  .hud{
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px 10px;
+  }
+
+  .game #canvas{
+    max-height: 78vh;
   }
 }
 
-/* Si querés que el footer no achique el juego */
-body.playing .footer{
-  display: none;
+@media (max-width: 420px){
+  .title{ font-size: 20px; }
+  .subtitle{ font-size: 13px; }
+  .hud{ font-size: 13px; }
 }
-
-
