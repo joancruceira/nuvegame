@@ -173,7 +173,8 @@
   const player = {
     x: W * 0.5,
     y: H - 70,
-    r: 28,
+    r: 36,
+    r: window.innerWidth < 600 ? 42 : 34,
     speed: 460,
     name: "",
     char: null,
@@ -680,3 +681,4 @@
   menu.hidden = false;
   gameWrap.hidden = true;
 })();
+
