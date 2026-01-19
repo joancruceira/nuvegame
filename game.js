@@ -85,10 +85,10 @@
   }
 
   const characters = [
-    { id:"nuveciela", label:"Nuveciela", desc:"La escritora", colorA:"rgba(124,58,237,.25)", colorB:"rgba(6,182,212,.25)", initial:"N", imageSrc:"nuveciela.png" },
-    { id:"ciela",     label:"Ciela",     desc:"La sensible",  colorA:"rgba(6,182,212,.25)", colorB:"rgba(251,191,36,.22)", initial:"C", imageSrc:"ciela.png" },
+    { id:"nuveciela", label:"Nuveciela", desc:"La fuerte", colorA:"rgba(124,58,237,.25)", colorB:"rgba(6,182,212,.25)", initial:"N", imageSrc:"nuveciela.png" },
+    { id:"ciela",     label:"Ciela",     desc:"La sabia",  colorA:"rgba(6,182,212,.25)", colorB:"rgba(251,191,36,.22)", initial:"C", imageSrc:"ciela.png" },
     { id:"lunaria",   label:"Lunaria",   desc:"La inventora", colorA:"rgba(251,191,36,.24)", colorB:"rgba(239,68,68,.18)", initial:"L", imageSrc:"lunaria.png" },
-    { id:"nuve",      label:"Nuve",      desc:"La valiente",  colorA:"rgba(167,139,250,.22)", colorB:"rgba(16,185,129,.18)", initial:"N", imageSrc:"nuve.png" },
+    { id:"nuve",      label:"Nuve",      desc:"La tranquila",  colorA:"rgba(167,139,250,.22)", colorB:"rgba(16,185,129,.18)", initial:"N", imageSrc:"nuve.png" },
   ];
 
   const imageCache = new Map();
@@ -681,5 +681,6 @@
   menu.hidden = false;
   gameWrap.hidden = true;
 })();
+
 
 
