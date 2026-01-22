@@ -172,22 +172,30 @@
 
   const isMobile = window.innerWidth < 600;
   const player = {
-  x: W * 0.5,
-  y: H - 70,
-  r: isMobile ? 42 : 34,
-  speed: 460,
-  name: "",
-  char: null,
-  dragging: false,
-  dragOffsetX: 0
-};
+    x: W * 0.5,
+    y: H - 70,
+    r: isMobile ? 42 : 34,
+    speed: 460,
+    name: "",
+    char: null,
+    dragging: false,
+    dragOffsetX: 0
+  };
 
   let stars = [];
   let clouds = [];
+  let powerups = [];     // NUEVO
   let particles = [];
 
   let starSpawnAcc = 0;
   let cloudSpawnAcc = 0;
+
+  // NUEVO: spawn y estados de powerups
+  let powerSpawnAcc = 0;
+  let nextPowerIn = 6.5;
+
+  let magnetUntil = 0;       // ms timestamp (performance.now())
+  let noCollectUntil = 0;    // ms timestamp (performance.now())
 
   function resetHUD() {
     scoreEl.textContent = String(score);
@@ -214,6 +222,9 @@
       starSpeedMax: 220 + (lvl-1)*55,
       cloudSpeedMin: 110 + (lvl-1)*30,
       cloudSpeedMax: 180 + (lvl-1)*45,
+      // NUEVO: frecuencia de powerups (aprox) por nivel
+      powerEveryMin: clamp(8.8 - (lvl-1)*0.6, 6.2, 8.8),
+      powerEveryMax: clamp(12.0 - (lvl-1)*0.6, 8.0, 12.0),
     };
   }
 
@@ -225,11 +236,18 @@
 
     stars = [];
     clouds = [];
+    powerups = [];
     particles = [];
 
     lastTs = 0;
     starSpawnAcc = 0;
     cloudSpawnAcc = 0;
+    powerSpawnAcc = 0;
+    nextPowerIn = rand(4.5, 7.5);
+
+    magnetUntil = 0;
+    noCollectUntil = 0;
+
     shake = 0;
 
     player.x = W * 0.5;
@@ -287,6 +305,39 @@
       y: -r - 10,
       r,
       vy: rand(s.cloudSpeedMin, s.cloudSpeedMax),
+      wobble: rand(0, Math.PI * 2),
+    });
+  }
+
+  // NUEVO: spawn powerups
+  function spawnPowerup(lvl) {
+    // Tipos:
+    // - magnet: estrella rosa (imán 1s)
+    // - time: +5s
+    // - block: no se pueden agarrar estrellas 2s (sin perder vida)
+    const roll = Math.random();
+    let type = "time";
+
+    const pMagnet = 0.34;
+    const pTime   = 0.38;
+    const pBlock  = 0.28 + (lvl-1)*0.03;
+
+    const total = pMagnet + pTime + pBlock;
+    const r = roll * total;
+
+    if (r < pMagnet) type = "magnet";
+    else if (r < pMagnet + pTime) type = "time";
+    else type = "block";
+
+    const rr = (type === "time") ? rand(18, 23) : rand(18, 24);
+    const vy = rand(140 + (lvl-1)*20, 220 + (lvl-1)*30);
+
+    powerups.push({
+      type,
+      x: rand(rr+10, W - rr - 10),
+      y: -rr - 10,
+      r: rr,
+      vy,
       wobble: rand(0, Math.PI * 2),
     });
   }
@@ -450,6 +501,117 @@
     }
   }
 
+  // NUEVO: dibujar powerups
+  function drawPowerups(ts) {
+    for (const p of powerups) {
+      const wob = Math.sin(ts/260 + p.wobble) * 7;
+      const x = p.x + wob;
+      const y = p.y;
+
+      if (p.type === "magnet") {
+        // estrella rosa + glow
+        ctx.save();
+        ctx.fillStyle = "rgba(236,72,153,0.95)";
+        drawStarShape(x, y, p.r);
+        ctx.fillStyle = "rgba(236,72,153,0.18)";
+        ctx.beginPath();
+        ctx.arc(x, y, p.r*1.65, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.beginPath();
+        ctx.arc(x - p.r*0.25, y - p.r*0.25, p.r*0.35, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (p.type === "time") {
+        // reloj
+        ctx.save();
+        ctx.fillStyle = "rgba(6,182,212,0.20)";
+        ctx.beginPath();
+        ctx.arc(x, y, p.r*1.3, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(6,182,212,0.95)";
+        ctx.beginPath();
+        ctx.arc(x, y, p.r*0.95, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.85)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, p.r*0.75, 0, Math.PI*2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.90)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y - p.r*0.45);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + p.r*0.38, y);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      if (p.type === "block") {
+        // bloqueo: círculo + slash
+        ctx.save();
+        ctx.fillStyle = "rgba(124,58,237,0.18)";
+        ctx.beginPath();
+        ctx.arc(x, y, p.r*1.35, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(17,24,39,0.80)";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(x, y, p.r*0.85, 0, Math.PI*2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(17,24,39,0.80)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(x - p.r*0.6, y + p.r*0.6);
+        ctx.lineTo(x + p.r*0.6, y - p.r*0.6);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    }
+  }
+
+  // NUEVO: status dentro del canvas (no requiere CSS)
+  function drawStatusBadges() {
+    const now = performance.now();
+    let x = 18;
+    let y = 18;
+
+    ctx.save();
+    ctx.font = "900 14px system-ui";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+
+    if (now < magnetUntil) {
+      const t = ((magnetUntil - now) / 1000).toFixed(1);
+      ctx.fillStyle = "rgba(236,72,153,0.92)";
+      ctx.fillText(`IMÁN ${t}s`, x, y);
+      y += 18;
+    }
+
+    if (now < noCollectUntil) {
+      const t = ((noCollectUntil - now) / 1000).toFixed(1);
+      ctx.fillStyle = "rgba(17,24,39,0.82)";
+      ctx.fillText(`BLOQUEO ${t}s`, x, y);
+      y += 18;
+    }
+
+    ctx.restore();
+  }
+
   function burst(x, y) {
     const count = 18;
     for (let i=0;i<count;i++){
@@ -513,9 +675,17 @@
 
     starSpawnAcc += dt;
     cloudSpawnAcc += dt;
+    powerSpawnAcc += dt;
 
     if (starSpawnAcc >= s.starEvery) { starSpawnAcc = 0; spawnStar(level); }
     if (cloudSpawnAcc >= s.cloudEvery) { cloudSpawnAcc = 0; spawnCloud(level); }
+
+    // NUEVO: powerups cada tanto
+    if (powerSpawnAcc >= nextPowerIn) {
+      powerSpawnAcc = 0;
+      spawnPowerup(level);
+      nextPowerIn = rand(s.powerEveryMin, s.powerEveryMax);
+    }
 
     if (!player.dragging) {
       const dir = (keys.left ? -1 : 0) + (keys.right ? 1 : 0);
@@ -523,16 +693,42 @@
     }
     player.x = clamp(player.x, player.r + 8, W - player.r - 8);
 
+    const now = performance.now();
+    const magnetOn = now < magnetUntil;
+    const blocked = now < noCollectUntil;
+
+    // Ajustes del imán (bien jugable)
+    const magnetCatchRadius = player.r + 95; // agranda "hitbox" de captura
+    const pullRadius = 220;                 // distancia de atracción
+    const pullStrength = 420;               // fuerza del tirón
+
     stars = stars.filter(st => {
       st.y += st.vy * dt;
 
-      if (collideCircle(st.x, st.y, st.r, player.x, player.y, player.r)) {
-        score += 10;
-        scoreEl.textContent = String(score);
-        burst(st.x, st.y);
-        playStar();
-        return false;
+      // IMÁN: atraer estrellas al jugador
+      if (magnetOn) {
+        const dx = player.x - st.x;
+        const dy = player.y - st.y;
+        const d = Math.hypot(dx, dy);
+
+        if (d < pullRadius && d > 0.001) {
+          st.x += (dx / d) * pullStrength * dt;
+          st.y += (dy / d) * (pullStrength * 0.15) * dt;
+        }
       }
+
+      // BLOQUEO: no se pueden agarrar estrellas
+      if (!blocked) {
+        const effectiveR = magnetOn ? magnetCatchRadius : player.r;
+        if (collideCircle(st.x, st.y, st.r, player.x, player.y, effectiveR)) {
+          score += 10;
+          scoreEl.textContent = String(score);
+          burst(st.x, st.y);
+          playStar();
+          return false;
+        }
+      }
+
       return !(st.y - st.r > H + 10);
     });
 
@@ -546,6 +742,37 @@
         return false;
       }
       return !(cl.y - cl.r > H + 10);
+    });
+
+    // NUEVO: colisiones powerups
+    powerups = powerups.filter(p => {
+      p.y += p.vy * dt;
+
+      if (collideCircle(p.x, p.y, p.r, player.x, player.y, player.r)) {
+        const now2 = performance.now();
+
+        if (p.type === "magnet") {
+          magnetUntil = Math.max(magnetUntil, now2 + 3000); // 3s
+          playSfx(sfxStarSrc, 0.55);
+        }
+
+        if (p.type === "time") {
+          timeLeft += 5;
+          timeLeft = Math.min(timeLeft, 120); // tope sano
+          timeEl.textContent = String(Math.ceil(timeLeft));
+          playSfx(sfxStarSrc, 0.50);
+        }
+
+        if (p.type === "block") {
+          noCollectUntil = Math.max(noCollectUntil, now2 + 2000); // 2s
+          playSfx(sfxNubeSrc, 0.55);
+        }
+
+        burst(p.x, p.y);
+        return false;
+      }
+
+      return !(p.y - p.r > H + 10);
     });
 
     particles = particles.filter(p => {
@@ -600,9 +827,13 @@
 
     drawStars(ts);
     drawClouds(ts);
+    drawPowerups(ts);     // NUEVO
     drawParticles();
     drawPlayer();
     ctx.restore();
+
+    // status fuera del shake (queda estable)
+    drawStatusBadges();   // NUEVO
 
     if (running) update(dt);
     else if (!gameWrap.hidden) drawEndOverlay();
@@ -681,5 +912,3 @@
   menu.hidden = false;
   gameWrap.hidden = true;
 })();
-
-
