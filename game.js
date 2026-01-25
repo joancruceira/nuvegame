@@ -33,13 +33,8 @@
 
   function resizeCanvasToDisplaySize() {
     dpr = Math.max(1, window.devicePixelRatio || 1);
-
-    // Tamaño interno nítido
     canvas.width = Math.floor(W * dpr);
     canvas.height = Math.floor(H * dpr);
-
-    // El tamaño visual lo define el CSS (width:100%; height:auto)
-    // No fuerces height aquí.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
   }
@@ -50,6 +45,8 @@
   // --- Helpers ---
   function rand(min, max) { return Math.random() * (max - min) + min; }
   function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function smooth01(t){ return t*t*(3-2*t); }
 
   // --- AUDIO ---
   const music = new Audio("fondo.mp3");
@@ -165,7 +162,7 @@
 
   let level = 1;
   const LEVEL_STEP = 15;
-  const MAX_LEVEL = 4;
+  const MAX_LEVEL = 5; // CAMBIO: ahora hay nivel 5 (mar)
 
   const keys = { left:false, right:false };
   let shake = 0;
@@ -196,7 +193,20 @@
 
   let magnetUntil = 0;       // ms timestamp (performance.now())
   let noCollectUntil = 0;    // ms timestamp (performance.now())
-  let immuneUntil = 0;       // NUEVO: inmune a nubes (Arcoiris)
+  let immuneUntil = 0;       // inmune a nubes (Arcoiris)
+
+  // efectos de fondo
+  let lightningUntil = 0;    // relámpago breve al perder vida
+  let rainbowBgUntil = 0;    // secuencia arcoíris cuando atrapás arcoiris
+  let rainbowBgStart = 0;
+
+  // NUEVO: transición de escenario por nivel
+  let sceneFrom = 1;
+  let sceneTo = 1;
+  let sceneT = 1;            // 0..1 (progreso)
+
+  // NUEVO: noche desde nivel 3 (suave)
+  let nightAlpha = 0;        // 0..1
 
   function resetHUD() {
     scoreEl.textContent = String(score);
@@ -208,7 +218,13 @@
   function computeLevel() {
     const elapsed = 60 - timeLeft;
     const newLevel = clamp(1 + Math.floor(elapsed / LEVEL_STEP), 1, MAX_LEVEL);
+
     if (newLevel !== level) {
+      // transición de escena
+      sceneFrom = level;
+      sceneTo = newLevel;
+      sceneT = 0;
+
       level = newLevel;
       levelHud.textContent = String(level);
       playSfx(sfxStarSrc, 0.35);
@@ -217,14 +233,14 @@
 
   function settingsForLevel(lvl) {
     return {
-      starEvery: clamp(0.55 - (lvl-1)*0.08, 0.28, 0.55),
-      cloudEvery: clamp(1.35 - (lvl-1)*0.22, 0.65, 1.35),
+      starEvery: clamp(0.55 - (lvl-1)*0.07, 0.24, 0.55),
+      cloudEvery: clamp(1.35 - (lvl-1)*0.20, 0.60, 1.35),
       starSpeedMin: 130 + (lvl-1)*35,
       starSpeedMax: 220 + (lvl-1)*55,
       cloudSpeedMin: 110 + (lvl-1)*30,
       cloudSpeedMax: 180 + (lvl-1)*45,
-      powerEveryMin: clamp(8.8 - (lvl-1)*0.6, 6.2, 8.8),
-      powerEveryMax: clamp(12.0 - (lvl-1)*0.6, 8.0, 12.0),
+      powerEveryMin: clamp(8.8 - (lvl-1)*0.6, 6.0, 8.8),
+      powerEveryMax: clamp(12.0 - (lvl-1)*0.6, 7.8, 12.0),
     };
   }
 
@@ -248,6 +264,15 @@
     magnetUntil = 0;
     noCollectUntil = 0;
     immuneUntil = 0;
+
+    lightningUntil = 0;
+    rainbowBgUntil = 0;
+    rainbowBgStart = 0;
+
+    sceneFrom = 1;
+    sceneTo = 1;
+    sceneT = 1;
+    nightAlpha = 0;
 
     shake = 0;
 
@@ -315,11 +340,11 @@
     const roll = Math.random();
     let type = "time";
 
-    // Ajustá estas probabilidades si querés más/menos de cada uno
-    const pMagnet  = 0.30;
-    const pTime    = 0.36;
-    const pBlock   = 0.22 + (lvl-1)*0.02;
-    const pRainbow = 0.18;
+    // CAMBIO 1: más frecuencia para arcoiris
+    const pMagnet  = 0.29;
+    const pTime    = 0.33;
+    const pBlock   = 0.20 + (lvl-1)*0.02;
+    const pRainbow = 0.26; // sube (antes 0.18)
 
     const total = pMagnet + pTime + pBlock + pRainbow;
     const r = roll * total;
@@ -348,41 +373,260 @@
     ctx.clearRect(0, 0, W, H);
   }
 
+  // color arcoíris según elapsed
+  const RAINBOW_COLS = [
+    [239, 68, 68],   // rojo
+    [245, 158, 11],  // naranja
+    [251, 191, 36],  // amarillo
+    [16, 185, 129],  // verde
+    [6, 182, 212],   // celeste
+    [59, 130, 246],  // azul
+    [124, 58, 237],  // violeta
+  ];
+  function rainbowColor(now) {
+    const dur = Math.max(1, rainbowBgUntil - rainbowBgStart);
+    const t01 = clamp((now - rainbowBgStart) / dur, 0, 1);
+    const pos = t01 * (RAINBOW_COLS.length - 1);
+    const i = Math.floor(pos);
+    const f = smooth01(pos - i);
+    const a = RAINBOW_COLS[i];
+    const b = RAINBOW_COLS[Math.min(i+1, RAINBOW_COLS.length-1)];
+    const r = Math.round(lerp(a[0], b[0], f));
+    const g = Math.round(lerp(a[1], b[1], f));
+    const bl = Math.round(lerp(a[2], b[2], f));
+    return [r,g,bl];
+  }
+
+  // relámpago
+  function drawLightning() {
+    const left = rand(0.18, 0.42) * W;
+    const top = rand(0.00, 0.12) * H;
+    const midX = left + rand(-40, 40);
+    const midY = top + rand(120, 180);
+    const botX = left + rand(-80, 80);
+    const botY = top + rand(260, 340);
+
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = "rgba(255,255,255,0.70)";
+    ctx.fillRect(0,0,W,H);
+
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = 6;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(midX, midY);
+    ctx.lineTo(midX + 30, midY + 15);
+    ctx.lineTo(botX, botY);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(59,130,246,0.22)";
+    ctx.lineWidth = 16;
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(midX, midY);
+    ctx.lineTo(midX + 30, midY + 15);
+    ctx.lineTo(botX, botY);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // NUEVO: escenas por nivel (procedural, no requiere imágenes)
+  function drawScene(levelId, ts, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // cielo / ambiente por nivel
+    if (levelId === 1) {
+      // como estaba (ondas suaves)
+      ctx.fillStyle = "rgba(124,58,237,.10)";
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      ctx.lineTo(0, H - 110);
+      for (let x=0; x<=W; x+=18){
+        const y = H - 110 + Math.sin((x/110) + ts/900) * 14;
+        ctx.lineTo(x,y);
+      }
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(6,182,212,.10)";
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      ctx.lineTo(0, H - 70);
+      for (let x=0; x<=W; x+=18){
+        const y = H - 70 + Math.sin((x/95) + ts/820 + 1.2) * 10;
+        ctx.lineTo(x,y);
+      }
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    if (levelId === 2) {
+      // árboles
+      const groundY = H - 85;
+      ctx.fillStyle = "rgba(16,185,129,0.12)";
+      ctx.fillRect(0, groundY, W, H-groundY);
+
+      for (let i=0;i<14;i++){
+        const x = i*(W/13) + Math.sin(ts/500+i)*6;
+        const h = 70 + (i%4)*18;
+        ctx.fillStyle = "rgba(17,24,39,0.25)";
+        ctx.fillRect(x-6, groundY - h + 18, 12, h-18);
+        ctx.fillStyle = "rgba(16,185,129,0.20)";
+        ctx.beginPath(); ctx.arc(x, groundY - h + 18, 26, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "rgba(6,182,212,0.12)";
+        ctx.beginPath(); ctx.arc(x+10, groundY - h + 12, 20, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    if (levelId === 3) {
+      // edificios
+      const base = H - 90;
+      ctx.fillStyle = "rgba(59,130,246,0.10)";
+      ctx.fillRect(0, base, W, H-base);
+
+      for (let i=0;i<16;i++){
+        const w = 38 + (i%5)*10;
+        const h = 70 + (i%6)*22;
+        const x = 20 + i*(W/16);
+        ctx.fillStyle = "rgba(17,24,39,0.22)";
+        ctx.fillRect(x, base - h, w, h);
+
+        // ventanas
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        for (let r=0;r<4;r++){
+          for (let c=0;c<3;c++){
+            ctx.fillRect(x+6+c*10, base-h+10+r*14, 6, 8);
+          }
+        }
+      }
+    }
+
+    if (levelId === 4) {
+      // montaña
+      ctx.fillStyle = "rgba(124,58,237,0.10)";
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      ctx.lineTo(0, H-120);
+      ctx.lineTo(W*0.22, H-180);
+      ctx.lineTo(W*0.45, H-140);
+      ctx.lineTo(W*0.70, H-210);
+      ctx.lineTo(W, H-130);
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(17,24,39,0.20)";
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      ctx.lineTo(0, H-95);
+      ctx.lineTo(W*0.18, H-140);
+      ctx.lineTo(W*0.42, H-115);
+      ctx.lineTo(W*0.72, H-170);
+      ctx.lineTo(W, H-105);
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fill();
+
+      // nieve
+      ctx.fillStyle = "rgba(255,255,255,0.12)";
+      ctx.beginPath();
+      ctx.moveTo(W*0.68, H-210);
+      ctx.lineTo(W*0.62, H-180);
+      ctx.lineTo(W*0.74, H-175);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    if (levelId === 5) {
+      // mar
+      const seaY = H - 120;
+      ctx.fillStyle = "rgba(6,182,212,0.14)";
+      ctx.fillRect(0, seaY, W, H-seaY);
+
+      ctx.fillStyle = "rgba(59,130,246,0.10)";
+      ctx.beginPath();
+      ctx.moveTo(0, seaY);
+      for (let x=0; x<=W; x+=20){
+        const y = seaY + Math.sin((x/70) + ts/650) * 8;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H);
+      ctx.lineTo(0, H);
+      ctx.closePath();
+      ctx.fill();
+
+      // espuma
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x=0; x<=W; x+=26){
+        const y = seaY + Math.sin((x/55) + ts/520) * 6 + 14;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
   function drawBackground(ts) {
+    const now = performance.now();
+
+    // transición escena actual
+    if (sceneT < 1) {
+      const t = smooth01(sceneT);
+      drawScene(sceneFrom, ts, 1 - t);
+      drawScene(sceneTo, ts, t);
+    } else {
+      drawScene(level, ts, 1);
+    }
+
+    // miniestrellas del fondo (se oscurecen con la noche)
+    const night = nightAlpha;
     for (let i=0;i<18;i++){
       const x = (i * 63) % W;
       const y = ((i * 111) % 170) + 18;
-      ctx.globalAlpha = 0.22;
-      ctx.fillStyle = "#111827";
+      ctx.globalAlpha = (0.22 + night*0.10);
+      ctx.fillStyle = night > 0 ? "rgba(255,255,255,0.85)" : "#111827";
       ctx.beginPath();
       ctx.arc(x + Math.sin(ts/700+i)*5, y, 1.5, 0, Math.PI*2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
 
-    ctx.fillStyle = "rgba(124,58,237,.10)";
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-    ctx.lineTo(0, H - 110);
-    for (let x=0; x<=W; x+=18){
-      const y = H - 110 + Math.sin((x/110) + ts/900) * 14;
-      ctx.lineTo(x,y);
+    // secuencia arcoíris al atrapar arcoiris
+    if (now < rainbowBgUntil) {
+      const [rr, gg, bb] = rainbowColor(now);
+      const pulse = 0.45 + Math.sin(now/120) * 0.08;
+      ctx.save();
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},0.22)`;
+      ctx.fillRect(0,0,W,H);
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},0.16)`;
+      ctx.fillRect(0,0,W,H);
+      ctx.restore();
     }
-    ctx.lineTo(W, H);
-    ctx.closePath();
-    ctx.fill();
 
-    ctx.fillStyle = "rgba(6,182,212,.10)";
-    ctx.beginPath();
-    ctx.moveTo(0, H);
-    ctx.lineTo(0, H - 70);
-    for (let x=0; x<=W; x+=18){
-      const y = H - 70 + Math.sin((x/95) + ts/820 + 1.2) * 10;
-      ctx.lineTo(x,y);
+    // noche desde nivel 3
+    if (nightAlpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.55 * nightAlpha;
+      ctx.fillStyle = "rgba(3,7,18,0.90)";
+      ctx.fillRect(0,0,W,H);
+      ctx.restore();
     }
-    ctx.lineTo(W, H);
-    ctx.closePath();
-    ctx.fill();
+
+    // relámpago cuando pierde una vida por nube
+    if (now < lightningUntil) drawLightning();
   }
 
   function drawStarShape(x, y, r) {
@@ -424,7 +668,6 @@
     const now = performance.now();
     const immuneOn = now < immuneUntil;
 
-    // Brillo arcoiris si está inmune
     if (immuneOn) {
       const pulse = 0.65 + Math.sin(now/90) * 0.10;
       const halo = ctx.createRadialGradient(
@@ -499,15 +742,31 @@
     ctx.fillText(player.name, player.x, player.y + player.r + 10);
   }
 
+  // CAMBIO 4: estrellas azules desde nivel 3
   function drawStars(ts) {
+    const isNight = (level >= 3);
     for (const s of stars) {
       const wob = Math.sin(ts/260 + s.wobble) * 8;
-      ctx.fillStyle = "rgba(251,191,36,0.95)";
-      drawStarShape(s.x + wob, s.y, s.r);
-      ctx.fillStyle = "rgba(124,58,237,.12)";
-      ctx.beginPath();
-      ctx.arc(s.x + wob, s.y, s.r*1.35, 0, Math.PI*2);
-      ctx.fill();
+
+      if (!isNight) {
+        ctx.fillStyle = "rgba(251,191,36,0.95)";
+        drawStarShape(s.x + wob, s.y, s.r);
+        ctx.fillStyle = "rgba(124,58,237,.12)";
+        ctx.beginPath();
+        ctx.arc(s.x + wob, s.y, s.r*1.35, 0, Math.PI*2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = "rgba(59,130,246,0.95)";
+        drawStarShape(s.x + wob, s.y, s.r);
+        ctx.fillStyle = "rgba(6,182,212,0.16)";
+        ctx.beginPath();
+        ctx.arc(s.x + wob, s.y, s.r*1.55, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.beginPath();
+        ctx.arc(s.x + wob - s.r*0.25, s.y - s.r*0.25, s.r*0.35, 0, Math.PI*2);
+        ctx.fill();
+      }
     }
   }
 
@@ -601,7 +860,6 @@
       }
 
       if (p.type === "rainbow") {
-        // Arcoiris: halo multicolor + arco girando
         ctx.save();
 
         const g = ctx.createRadialGradient(x, y, p.r*0.2, x, y, p.r*1.6);
@@ -712,6 +970,9 @@
     livesEl.textContent = String(lives);
     shake = 10;
     playNube();
+
+    lightningUntil = performance.now() + 180;
+
     if (lives <= 0) stopGame();
   }
 
@@ -726,6 +987,14 @@
     timeEl.textContent = String(Math.ceil(timeLeft));
 
     computeLevel();
+
+    // transición escena (si está en curso)
+    if (sceneT < 1) sceneT = Math.min(1, sceneT + dt * 1.4);
+
+    // CAMBIO 4: noche desde nivel 3 (fade suave)
+    const targetNight = (level >= 3) ? 1 : 0;
+    nightAlpha = clamp(nightAlpha + (targetNight - nightAlpha) * (1 - Math.exp(-dt*2.2)), 0, 1);
+
     const s = settingsForLevel(level);
 
     starSpawnAcc += dt;
@@ -793,7 +1062,6 @@
           scoreEl.textContent = String(score);
           loseLife();
         } else {
-          // feedback suave sin daño
           playSfx(sfxStarSrc, 0.25);
           burst(cl.x, cl.y);
         }
@@ -809,7 +1077,9 @@
         const now2 = performance.now();
 
         if (p.type === "magnet") {
-          magnetUntil = Math.max(magnetUntil, now2 + 3000); // 3s
+          // CAMBIO 5: dura 3s más del establecido
+          // antes: +3000; ahora: +6000 total
+          magnetUntil = Math.max(magnetUntil, now2 + 6000);
           playSfx(sfxStarSrc, 0.55);
         }
 
@@ -821,12 +1091,14 @@
         }
 
         if (p.type === "block") {
-          noCollectUntil = Math.max(noCollectUntil, now2 + 2000); // 2s
+          noCollectUntil = Math.max(noCollectUntil, now2 + 2000);
           playSfx(sfxNubeSrc, 0.55);
         }
 
         if (p.type === "rainbow") {
-          immuneUntil = Math.max(immuneUntil, now2 + 5000); // 5s
+          immuneUntil = Math.max(immuneUntil, now2 + 5000);
+          rainbowBgStart = now2;
+          rainbowBgUntil = now2 + 5000;
           playSfx(sfxStarSrc, 0.55);
         }
 
