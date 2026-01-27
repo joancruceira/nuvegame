@@ -162,7 +162,7 @@
 
   let level = 1;
   const LEVEL_STEP = 15;
-  const MAX_LEVEL = 5; // CAMBIO: ahora hay nivel 5 (mar)
+  const MAX_LEVEL = 5;
 
   const keys = { left:false, right:false };
   let shake = 0;
@@ -184,6 +184,10 @@
   let powerups = [];
   let particles = [];
 
+  // NUEVO: copos (bonus)
+  let snowflakes = [];
+  let snowSpawnAcc = 0;
+
   let starSpawnAcc = 0;
   let cloudSpawnAcc = 0;
 
@@ -191,22 +195,53 @@
   let powerSpawnAcc = 0;
   let nextPowerIn = 6.5;
 
-  let magnetUntil = 0;       // ms timestamp (performance.now())
-  let noCollectUntil = 0;    // ms timestamp (performance.now())
-  let immuneUntil = 0;       // inmune a nubes (Arcoiris)
+  let magnetUntil = 0;
+  let noCollectUntil = 0;
+  let immuneUntil = 0;
 
   // efectos de fondo
-  let lightningUntil = 0;    // relámpago breve al perder vida
-  let rainbowBgUntil = 0;    // secuencia arcoíris cuando atrapás arcoiris
+  let lightningUntil = 0;
+  let rainbowBgUntil = 0;
   let rainbowBgStart = 0;
 
-  // NUEVO: transición de escenario por nivel
+  // transición de escenario por nivel
   let sceneFrom = 1;
   let sceneTo = 1;
-  let sceneT = 1;            // 0..1 (progreso)
+  let sceneT = 1;
 
-  // NUEVO: noche desde nivel 3 (suave)
-  let nightAlpha = 0;        // 0..1
+  // día/noche (fade suave) — ahora intercalado de 2 en 2
+  let nightAlpha = 0;
+
+  // --- NUEVO: sol en el fondo (cuando es de día en nivel >= 4)
+  function drawSun(ts, alpha = 1) {
+    const x = W * 0.82 + Math.sin(ts/900) * 4;
+    const y = H * 0.18 + Math.cos(ts/1100) * 3;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    const g = ctx.createRadialGradient(x, y, 6, x, y, 55);
+    g.addColorStop(0.0, "rgba(255,255,255,0.55)");
+    g.addColorStop(0.30, "rgba(251,191,36,0.42)");
+    g.addColorStop(0.65, "rgba(245,158,11,0.22)");
+    g.addColorStop(1.0, "rgba(245,158,11,0.00)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, 60, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(251,191,36,0.22)";
+    ctx.lineWidth = 2;
+    for (let i=0;i<10;i++){
+      const ang = (i/10) * Math.PI*2 + ts/6000;
+      const r1 = 28, r2 = 44;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(ang)*r1, y + Math.sin(ang)*r1);
+      ctx.lineTo(x + Math.cos(ang)*r2, y + Math.sin(ang)*r2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
 
   function resetHUD() {
     scoreEl.textContent = String(score);
@@ -220,7 +255,6 @@
     const newLevel = clamp(1 + Math.floor(elapsed / LEVEL_STEP), 1, MAX_LEVEL);
 
     if (newLevel !== level) {
-      // transición de escena
       sceneFrom = level;
       sceneTo = newLevel;
       sceneT = 0;
@@ -241,8 +275,14 @@
       cloudSpeedMax: 180 + (lvl-1)*45,
       powerEveryMin: clamp(8.8 - (lvl-1)*0.6, 6.0, 8.8),
       powerEveryMax: clamp(12.0 - (lvl-1)*0.6, 7.8, 12.0),
+
+      // NUEVO: copos con frecuencia parecida al arcoíris (aprox. 8–12s en promedio)
+      snowEveryMin: 8.2,
+      snowEveryMax: 12.2,
     };
   }
+
+  let nextSnowIn = 9.5;
 
   function resetGame() {
     score = 0;
@@ -254,6 +294,10 @@
     clouds = [];
     powerups = [];
     particles = [];
+
+    snowflakes = [];
+    snowSpawnAcc = 0;
+    nextSnowIn = rand(8.2, 12.2);
 
     lastTs = 0;
     starSpawnAcc = 0;
@@ -340,11 +384,10 @@
     const roll = Math.random();
     let type = "time";
 
-    // CAMBIO 1: más frecuencia para arcoiris
     const pMagnet  = 0.29;
     const pTime    = 0.33;
     const pBlock   = 0.20 + (lvl-1)*0.02;
-    const pRainbow = 0.26; // sube (antes 0.18)
+    const pRainbow = 0.26;
 
     const total = pMagnet + pTime + pBlock + pRainbow;
     const r = roll * total;
@@ -367,21 +410,36 @@
     });
   }
 
+  // NUEVO: copo de nieve (bonus)
+  function spawnSnowflake(lvl) {
+    // lvl >= 3
+    const r = rand(13, 18);
+    const vy = rand(145 + (lvl-1)*12, 220 + (lvl-1)*18);
+    snowflakes.push({
+      x: rand(r+10, W - r - 10),
+      y: -r - 10,
+      r,
+      vy,
+      wobble: rand(0, Math.PI * 2),
+      spin: rand(-2.5, 2.5),
+      rot: rand(0, Math.PI*2),
+    });
+  }
+
   // --- Draw ---
   function beginFrame() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
   }
 
-  // color arcoíris según elapsed
   const RAINBOW_COLS = [
-    [239, 68, 68],   // rojo
-    [245, 158, 11],  // naranja
-    [251, 191, 36],  // amarillo
-    [16, 185, 129],  // verde
-    [6, 182, 212],   // celeste
-    [59, 130, 246],  // azul
-    [124, 58, 237],  // violeta
+    [239, 68, 68],
+    [245, 158, 11],
+    [251, 191, 36],
+    [16, 185, 129],
+    [6, 182, 212],
+    [59, 130, 246],
+    [124, 58, 237],
   ];
   function rainbowColor(now) {
     const dur = Math.max(1, rainbowBgUntil - rainbowBgStart);
@@ -397,7 +455,6 @@
     return [r,g,bl];
   }
 
-  // relámpago
   function drawLightning() {
     const left = rand(0.18, 0.42) * W;
     const top = rand(0.00, 0.12) * H;
@@ -435,14 +492,12 @@
     ctx.restore();
   }
 
-  // NUEVO: escenas por nivel (procedural, no requiere imágenes)
+  // escenas por nivel
   function drawScene(levelId, ts, alpha = 1) {
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    // cielo / ambiente por nivel
     if (levelId === 1) {
-      // como estaba (ondas suaves)
       ctx.fillStyle = "rgba(124,58,237,.10)";
       ctx.beginPath();
       ctx.moveTo(0, H);
@@ -469,7 +524,6 @@
     }
 
     if (levelId === 2) {
-      // árboles
       const groundY = H - 85;
       ctx.fillStyle = "rgba(16,185,129,0.12)";
       ctx.fillRect(0, groundY, W, H-groundY);
@@ -487,7 +541,6 @@
     }
 
     if (levelId === 3) {
-      // edificios
       const base = H - 90;
       ctx.fillStyle = "rgba(59,130,246,0.10)";
       ctx.fillRect(0, base, W, H-base);
@@ -499,7 +552,6 @@
         ctx.fillStyle = "rgba(17,24,39,0.22)";
         ctx.fillRect(x, base - h, w, h);
 
-        // ventanas
         ctx.fillStyle = "rgba(255,255,255,0.10)";
         for (let r=0;r<4;r++){
           for (let c=0;c<3;c++){
@@ -510,7 +562,6 @@
     }
 
     if (levelId === 4) {
-      // montaña
       ctx.fillStyle = "rgba(124,58,237,0.10)";
       ctx.beginPath();
       ctx.moveTo(0, H);
@@ -535,7 +586,6 @@
       ctx.closePath();
       ctx.fill();
 
-      // nieve
       ctx.fillStyle = "rgba(255,255,255,0.12)";
       ctx.beginPath();
       ctx.moveTo(W*0.68, H-210);
@@ -546,7 +596,6 @@
     }
 
     if (levelId === 5) {
-      // mar
       const seaY = H - 120;
       ctx.fillStyle = "rgba(6,182,212,0.14)";
       ctx.fillRect(0, seaY, W, H-seaY);
@@ -563,7 +612,6 @@
       ctx.closePath();
       ctx.fill();
 
-      // espuma
       ctx.strokeStyle = "rgba(255,255,255,0.18)";
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -580,7 +628,6 @@
   function drawBackground(ts) {
     const now = performance.now();
 
-    // transición escena actual
     if (sceneT < 1) {
       const t = smooth01(sceneT);
       drawScene(sceneFrom, ts, 1 - t);
@@ -589,7 +636,7 @@
       drawScene(level, ts, 1);
     }
 
-    // miniestrellas del fondo (se oscurecen con la noche)
+    // miniestrellas del fondo
     const night = nightAlpha;
     for (let i=0;i<18;i++){
       const x = (i * 63) % W;
@@ -602,7 +649,7 @@
     }
     ctx.globalAlpha = 1;
 
-    // secuencia arcoíris al atrapar arcoiris
+    // secuencia arcoíris
     if (now < rainbowBgUntil) {
       const [rr, gg, bb] = rainbowColor(now);
       const pulse = 0.45 + Math.sin(now/120) * 0.08;
@@ -616,7 +663,7 @@
       ctx.restore();
     }
 
-    // noche desde nivel 3
+    // noche (oscurece)
     if (nightAlpha > 0) {
       ctx.save();
       ctx.globalAlpha = 0.55 * nightAlpha;
@@ -625,7 +672,11 @@
       ctx.restore();
     }
 
-    // relámpago cuando pierde una vida por nube
+    // CAMBIO 2: en nivel 4 vuelve de día y aparece sol
+    // + CAMBIO 3: día/noche se intercalan de 2 en 2 (ver update)
+    const isDayNow = (nightAlpha < 0.25);
+    if (level >= 4 && isDayNow) drawSun(ts, 0.85);
+
     if (now < lightningUntil) drawLightning();
   }
 
@@ -646,6 +697,50 @@
     }
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSnowflakeShape(x, y, r, rot) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    for (let i=0;i<6;i++){
+      const a = (i/6)*Math.PI*2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*r*0.15, Math.sin(a)*r*0.15);
+      ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+      ctx.stroke();
+
+      // ramitas
+      const bx = Math.cos(a)*r*0.70;
+      const by = Math.sin(a)*r*0.70;
+      const s1 = a + 0.45;
+      const s2 = a - 0.45;
+
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + Math.cos(s1)*r*0.28, by + Math.sin(s1)*r*0.28);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + Math.cos(s2)*r*0.28, by + Math.sin(s2)*r*0.28);
+      ctx.stroke();
+    }
+
+    // glow
+    const g = ctx.createRadialGradient(0,0, r*0.15, 0,0, r*1.6);
+    g.addColorStop(0, "rgba(255,255,255,0.25)");
+    g.addColorStop(0.55, "rgba(6,182,212,0.18)");
+    g.addColorStop(1, "rgba(59,130,246,0.00)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0,0, r*1.55, 0, Math.PI*2);
+    ctx.fill();
+
     ctx.restore();
   }
 
@@ -742,9 +837,9 @@
     ctx.fillText(player.name, player.x, player.y + player.r + 10);
   }
 
-  // CAMBIO 4: estrellas azules desde nivel 3
+  // estrellas: azules cuando está noche (según nightAlpha)
   function drawStars(ts) {
-    const isNight = (level >= 3);
+    const isNight = (nightAlpha > 0.45);
     for (const s of stars) {
       const wob = Math.sin(ts/260 + s.wobble) * 8;
 
@@ -767,6 +862,13 @@
         ctx.arc(s.x + wob - s.r*0.25, s.y - s.r*0.25, s.r*0.35, 0, Math.PI*2);
         ctx.fill();
       }
+    }
+  }
+
+  function drawSnowflakes(ts) {
+    for (const f of snowflakes) {
+      const wob = Math.sin(ts/260 + f.wobble) * 10;
+      drawSnowflakeShape(f.x + wob, f.y, f.r, f.rot);
     }
   }
 
@@ -988,18 +1090,28 @@
 
     computeLevel();
 
-    // transición escena (si está en curso)
     if (sceneT < 1) sceneT = Math.min(1, sceneT + dt * 1.4);
 
-    // CAMBIO 4: noche desde nivel 3 (fade suave)
-    const targetNight = (level >= 3) ? 1 : 0;
-    nightAlpha = clamp(nightAlpha + (targetNight - nightAlpha) * (1 - Math.exp(-dt*2.2)), 0, 1);
+    // CAMBIO 3: día/noche se intercalan de 2 en 2:
+    // niveles 1-2 = día, 3-4 = noche, 5-6 = día, ...
+    const isNightByLevel = (Math.floor((level - 1) / 2) % 2) === 1;
+
+    // CAMBIO 2: desde nivel 4 vuelve a hacerse de día (override)
+    // (si querés que sea estrictamente 2 en 2, eliminá este override)
+    const forcedDayAtLvl4 = (level === 4);
+
+    const targetNight = (forcedDayAtLvl4 ? 0 : (isNightByLevel ? 1 : 0));
+    nightAlpha = clamp(
+      nightAlpha + (targetNight - nightAlpha) * (1 - Math.exp(-dt*2.2)),
+      0, 1
+    );
 
     const s = settingsForLevel(level);
 
     starSpawnAcc += dt;
     cloudSpawnAcc += dt;
     powerSpawnAcc += dt;
+    snowSpawnAcc += dt;
 
     if (starSpawnAcc >= s.starEvery) { starSpawnAcc = 0; spawnStar(level); }
     if (cloudSpawnAcc >= s.cloudEvery) { cloudSpawnAcc = 0; spawnCloud(level); }
@@ -1008,6 +1120,13 @@
       powerSpawnAcc = 0;
       spawnPowerup(level);
       nextPowerIn = rand(s.powerEveryMin, s.powerEveryMax);
+    }
+
+    // CAMBIO 1: desde nivel 3 caen copos con frecuencia tipo arcoíris
+    if (level >= 3 && snowSpawnAcc >= nextSnowIn) {
+      snowSpawnAcc = 0;
+      spawnSnowflake(level);
+      nextSnowIn = rand(s.snowEveryMin, s.snowEveryMax);
     }
 
     if (!player.dragging) {
@@ -1070,6 +1189,27 @@
       return !(cl.y - cl.r > H + 10);
     });
 
+    // NUEVO: copos (colisión -> +1 vida y +20s)
+    snowflakes = snowflakes.filter(f => {
+      f.y += f.vy * dt;
+      f.rot += f.spin * dt;
+
+      if (collideCircle(f.x, f.y, f.r, player.x, player.y, player.r)) {
+        lives += 1;
+        livesEl.textContent = String(lives);
+
+        timeLeft += 20;
+        timeLeft = Math.min(timeLeft, 180);
+        timeEl.textContent = String(Math.ceil(timeLeft));
+
+        playSfx(sfxStarSrc, 0.60);
+        burst(f.x, f.y);
+        return false;
+      }
+
+      return !(f.y - f.r > H + 10);
+    });
+
     powerups = powerups.filter(p => {
       p.y += p.vy * dt;
 
@@ -1077,15 +1217,13 @@
         const now2 = performance.now();
 
         if (p.type === "magnet") {
-          // CAMBIO 5: dura 3s más del establecido
-          // antes: +3000; ahora: +6000 total
           magnetUntil = Math.max(magnetUntil, now2 + 6000);
           playSfx(sfxStarSrc, 0.55);
         }
 
         if (p.type === "time") {
           timeLeft += 5;
-          timeLeft = Math.min(timeLeft, 120);
+          timeLeft = Math.min(timeLeft, 180);
           timeEl.textContent = String(Math.ceil(timeLeft));
           playSfx(sfxStarSrc, 0.50);
         }
@@ -1159,6 +1297,7 @@
     drawStars(ts);
     drawClouds(ts);
     drawPowerups(ts);
+    drawSnowflakes(ts); // NUEVO
     drawParticles();
     drawPlayer();
     ctx.restore();
