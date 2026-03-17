@@ -762,105 +762,145 @@
 
     const now = performance.now();
     const immuneOn = now < immuneUntil;
+    const magnetOn = now < magnetUntil;
 
+    // Draw character image as tall sprite (not clipped to circle)
+    const img = imageCache.get(c.id);
+    const ready = img && img.complete && img.naturalWidth > 0;
+
+    // sprite height = 2.8x radius so the whole figure is visible
+    const spriteH = player.r * 2.8;
+    const spriteW = ready ? (img.naturalWidth / img.naturalHeight) * spriteH : spriteH;
+    const sx = player.x - spriteW / 2;
+    const sy = player.y - spriteH * 0.72; // anchor bottom-ish at player.y
+
+    // shadow under character
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    const shadowGrad = ctx.createRadialGradient(player.x, player.y + player.r * 0.3, 0, player.x, player.y + player.r * 0.3, player.r * 1.4);
+    shadowGrad.addColorStop(0, "rgba(0,0,0,0.55)");
+    shadowGrad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = shadowGrad;
+    ctx.beginPath();
+    ctx.ellipse(player.x, player.y + player.r * 0.25, player.r * 1.4, player.r * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // immune rainbow halo
     if (immuneOn) {
-      const pulse = 0.65 + Math.sin(now/90) * 0.10;
-      const halo = ctx.createRadialGradient(
-        player.x, player.y, player.r*0.3,
-        player.x, player.y, player.r*2.2
-      );
-      halo.addColorStop(0.0, `rgba(255,255,255,${0.30*pulse})`);
-      halo.addColorStop(0.35, `rgba(236,72,153,${0.22*pulse})`);
-      halo.addColorStop(0.55, `rgba(251,191,36,${0.18*pulse})`);
-      halo.addColorStop(0.72, `rgba(16,185,129,${0.16*pulse})`);
-      halo.addColorStop(0.88, `rgba(6,182,212,${0.14*pulse})`);
-      halo.addColorStop(1.0, `rgba(124,58,237,${0.10*pulse})`);
-
+      const pulse = 0.70 + Math.sin(now / 80) * 0.12;
+      const halo = ctx.createRadialGradient(player.x, player.y, player.r * 0.2, player.x, player.y, player.r * 2.6);
+      halo.addColorStop(0.0, `rgba(255,255,255,${0.35 * pulse})`);
+      halo.addColorStop(0.25, `rgba(236,72,153,${0.26 * pulse})`);
+      halo.addColorStop(0.50, `rgba(251,191,36,${0.22 * pulse})`);
+      halo.addColorStop(0.72, `rgba(16,185,129,${0.18 * pulse})`);
+      halo.addColorStop(0.88, `rgba(6,182,212,${0.16 * pulse})`);
+      halo.addColorStop(1.0, `rgba(124,58,237,${0.10 * pulse})`);
       ctx.save();
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.arc(player.x, player.y, player.r*2.15, 0, Math.PI*2);
+      ctx.arc(player.x, player.y, player.r * 2.55, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
 
-    const grad = ctx.createLinearGradient(player.x - player.r, player.y - player.r, player.x + player.r, player.y + player.r);
-    grad.addColorStop(0, c.colorA);
-    grad.addColorStop(1, c.colorB);
-
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, player.r+3, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
-    ctx.closePath();
-    ctx.save();
-    ctx.clip();
-
-    const img = imageCache.get(c.id);
-    const ready = img && img.complete && img.naturalWidth > 0;
-
-    if (ready) {
-      const size = player.r * 2;
-      const iw = img.naturalWidth;
-      const ih = img.naturalHeight;
-      const scale = Math.max(size / iw, size / ih);
-      const dw = iw * scale;
-      const dh = ih * scale;
-      const dx = player.x - dw/2;
-      const dy = player.y - dh/2;
-      ctx.drawImage(img, dx, dy, dw, dh);
-    } else {
-      ctx.fillStyle = "rgba(255,255,255,.85)";
-      ctx.fillRect(player.x-player.r, player.y-player.r, player.r*2, player.r*2);
-      ctx.fillStyle = "rgba(17,24,39,.85)";
-      ctx.font = "900 18px system-ui";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(c.label.slice(0,1).toUpperCase(), player.x, player.y);
+    // magnet field indicator
+    if (magnetOn) {
+      const pulse2 = 0.50 + Math.sin(now / 160) * 0.12;
+      ctx.save();
+      ctx.globalAlpha = pulse2 * 0.28;
+      ctx.strokeStyle = "rgba(236,72,153,0.90)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, 220, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
     }
 
-    ctx.restore();
+    // draw sprite image
+    if (ready) {
+      ctx.save();
+      ctx.drawImage(img, sx, sy, spriteW, spriteH);
+      ctx.restore();
+    } else {
+      // fallback: colored circle with initial
+      const grad = ctx.createLinearGradient(player.x - player.r, player.y - player.r, player.x + player.r, player.y + player.r);
+      grad.addColorStop(0, c.colorA);
+      grad.addColorStop(1, c.colorB);
+      ctx.save();
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(17,24,39,.85)";
+      ctx.font = "900 20px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(c.label.slice(0, 1).toUpperCase(), player.x, player.y);
+      ctx.restore();
+    }
 
-    ctx.strokeStyle = "rgba(0,0,0,.12)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(17,24,39,.70)";
-    ctx.font = "800 12px system-ui";
+    // player name tag
+    ctx.save();
+    ctx.font = "900 13px 'Nunito', system-ui";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText(player.name, player.x, player.y + player.r + 10);
+    const labelY = player.y + player.r * 0.45;
+    ctx.fillStyle = "rgba(0,0,0,.55)";
+    ctx.fillText(player.name, player.x + 1, labelY + 1);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(player.name, player.x, labelY);
+    ctx.restore();
   }
 
   // estrellas: azules cuando está noche (según nightAlpha)
   function drawStars(ts) {
     const isNight = (nightAlpha > 0.45);
     for (const s of stars) {
-      const wob = Math.sin(ts/260 + s.wobble) * 8;
+      const wob = Math.sin(ts / 260 + s.wobble) * 8;
+      const twinkle = 0.85 + Math.sin(ts / 180 + s.wobble * 3) * 0.15;
+      const sx = s.x + wob;
 
       if (!isNight) {
+        // glow outer
+        const glow = ctx.createRadialGradient(sx, s.y, 0, sx, s.y, s.r * 2.5);
+        glow.addColorStop(0, "rgba(251,191,36,0.55)");
+        glow.addColorStop(0.5, "rgba(251,191,36,0.18)");
+        glow.addColorStop(1, "rgba(251,191,36,0)");
+        ctx.save();
+        ctx.globalAlpha = twinkle;
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(sx, s.y, s.r * 2.5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "rgba(251,191,36,0.95)";
-        drawStarShape(s.x + wob, s.y, s.r);
-        ctx.fillStyle = "rgba(124,58,237,.12)";
+        drawStarShape(sx, s.y, s.r);
+        // highlight
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
         ctx.beginPath();
-        ctx.arc(s.x + wob, s.y, s.r*1.35, 0, Math.PI*2);
+        ctx.arc(sx - s.r * 0.2, s.y - s.r * 0.25, s.r * 0.32, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       } else {
-        ctx.fillStyle = "rgba(59,130,246,0.95)";
-        drawStarShape(s.x + wob, s.y, s.r);
-        ctx.fillStyle = "rgba(6,182,212,0.16)";
+        const glow2 = ctx.createRadialGradient(sx, s.y, 0, sx, s.y, s.r * 2.8);
+        glow2.addColorStop(0, "rgba(147,197,253,0.65)");
+        glow2.addColorStop(0.5, "rgba(59,130,246,0.22)");
+        glow2.addColorStop(1, "rgba(59,130,246,0)");
+        ctx.save();
+        ctx.globalAlpha = twinkle;
+        ctx.fillStyle = glow2;
         ctx.beginPath();
-        ctx.arc(s.x + wob, s.y, s.r*1.55, 0, Math.PI*2);
+        ctx.arc(sx, s.y, s.r * 2.8, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillStyle = "rgba(147,197,253,0.95)";
+        drawStarShape(sx, s.y, s.r);
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
         ctx.beginPath();
-        ctx.arc(s.x + wob - s.r*0.25, s.y - s.r*0.25, s.r*0.35, 0, Math.PI*2);
+        ctx.arc(sx - s.r * 0.22, s.y - s.r * 0.22, s.r * 0.35, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       }
     }
   }
@@ -874,13 +914,38 @@
 
   function drawClouds(ts) {
     for (const c of clouds) {
-      const wob = Math.sin(ts/280 + c.wobble) * 7;
-      ctx.fillStyle = "rgba(17,24,39,.72)";
-      drawCloudShape(c.x + wob, c.y, c.r);
-      ctx.fillStyle = "rgba(239,68,68,.16)";
+      const wob = Math.sin(ts / 280 + c.wobble) * 7;
+      const cx = c.x + wob;
+
+      // danger glow
+      const glow = ctx.createRadialGradient(cx, c.y, 0, cx, c.y, c.r * 2.2);
+      glow.addColorStop(0, "rgba(239,68,68,0.30)");
+      glow.addColorStop(0.6, "rgba(239,68,68,0.10)");
+      glow.addColorStop(1, "rgba(239,68,68,0)");
+      ctx.save();
+      ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(c.x + wob, c.y, c.r*1.15, 0, Math.PI*2);
+      ctx.arc(cx, c.y, c.r * 2.2, 0, Math.PI * 2);
       ctx.fill();
+
+      // dark cloud body
+      ctx.fillStyle = "rgba(23,20,38,0.82)";
+      drawCloudShape(cx, c.y, c.r);
+
+      // inner red shimmer
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = "rgba(239,68,68,0.85)";
+      drawCloudShape(cx, c.y, c.r * 0.7);
+      ctx.globalAlpha = 1;
+
+      // highlight edge
+      ctx.strokeStyle = "rgba(239,68,68,0.28)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx - c.r * 0.2, c.y - c.r * 0.15, c.r * 0.6, Math.PI, Math.PI * 1.8);
+      ctx.stroke();
+
+      ctx.restore();
     }
   }
 
@@ -995,51 +1060,63 @@
 
   function drawStatusBadges() {
     const now = performance.now();
-    let x = 18;
-    let y = 18;
+    let y = 14;
+    const x = 14;
 
     ctx.save();
-    ctx.font = "900 14px system-ui";
+    ctx.font = "900 13px 'Nunito', system-ui";
     ctx.textAlign = "left";
-    ctx.textBaseline = "top";
+    ctx.textBaseline = "middle";
+
+    function badge(text, bg, textColor) {
+      const pad = 10;
+      const h = 26;
+      const w = ctx.measureText(text).width + pad * 2;
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8);
+      ctx.fill();
+      ctx.fillStyle = textColor;
+      ctx.fillText(text, x + pad, y + h / 2);
+      y += h + 5;
+    }
 
     if (now < magnetUntil) {
       const t = ((magnetUntil - now) / 1000).toFixed(1);
-      ctx.fillStyle = "rgba(236,72,153,0.92)";
-      ctx.fillText(`IMÁN ${t}s`, x, y);
-      y += 18;
+      badge(`🧲 IMÁN ${t}s`, "rgba(236,72,153,0.92)", "#fff");
     }
 
     if (now < noCollectUntil) {
       const t = ((noCollectUntil - now) / 1000).toFixed(1);
-      ctx.fillStyle = "rgba(17,24,39,0.82)";
-      ctx.fillText(`BLOQUEO ${t}s`, x, y);
-      y += 18;
+      badge(`🚫 BLOQUEO ${t}s`, "rgba(23,20,38,0.85)", "#fff");
     }
 
     if (now < immuneUntil) {
       const t = ((immuneUntil - now) / 1000).toFixed(1);
-      ctx.fillStyle = "rgba(16,185,129,0.92)";
-      ctx.fillText(`ARCOIRIS ${t}s`, x, y);
-      y += 18;
+      badge(`🌈 ARCOÍRIS ${t}s`, "rgba(16,185,129,0.90)", "#fff");
     }
 
     ctx.restore();
   }
 
-  function burst(x, y) {
-    const count = 18;
-    for (let i=0;i<count;i++){
-      const ang = rand(0, Math.PI*2);
-      const spd = rand(130, 380);
+  function burst(x, y, color) {
+    const count = 20;
+    const cols = color
+      ? [color, color, "rgba(255,255,255,0.90)"]
+      : ["rgba(251,191,36,0.95)", "rgba(124,58,237,0.75)", "rgba(6,182,212,0.75)", "rgba(255,255,255,0.90)"];
+
+    for (let i = 0; i < count; i++) {
+      const ang = rand(0, Math.PI * 2);
+      const spd = rand(120, 400);
       particles.push({
         x, y,
-        vx: Math.cos(ang)*spd,
-        vy: Math.sin(ang)*spd,
-        r: rand(3, 6),
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - rand(20, 80),
+        r: rand(3, 7),
         a: 1,
-        kind: Math.random() < 0.65 ? "spark" : "dot",
-        life: rand(0.38, 0.70)
+        col: cols[Math.floor(Math.random() * cols.length)],
+        kind: Math.random() < 0.60 ? "spark" : "dot",
+        life: rand(0.38, 0.75)
       });
     }
   }
@@ -1047,13 +1124,11 @@
   function drawParticles() {
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.a);
-      ctx.fillStyle = p.kind === "spark"
-        ? "rgba(251,191,36,0.95)"
-        : "rgba(124,58,237,0.35)";
+      ctx.fillStyle = p.col || (p.kind === "spark" ? "rgba(251,191,36,0.95)" : "rgba(124,58,237,0.55)");
       if (p.kind === "spark") drawStarShape(p.x, p.y, p.r);
       else {
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -1163,7 +1238,7 @@
         if (collideCircle(st.x, st.y, st.r, player.x, player.y, effectiveR)) {
           score += 10;
           scoreEl.textContent = String(score);
-          burst(st.x, st.y);
+          burst(st.x, st.y, "rgba(251,191,36,0.95)");
           playStar();
           return false;
         }
@@ -1182,7 +1257,7 @@
           loseLife();
         } else {
           playSfx(sfxStarSrc, 0.25);
-          burst(cl.x, cl.y);
+          burst(cl.x, cl.y, "rgba(16,185,129,0.90)");
         }
         return false;
       }
@@ -1203,7 +1278,7 @@
         timeEl.textContent = String(Math.ceil(timeLeft));
 
         playSfx(sfxStarSrc, 0.60);
-        burst(f.x, f.y);
+        burst(f.x, f.y, "rgba(147,197,253,0.95)");
         return false;
       }
 
@@ -1219,6 +1294,7 @@
         if (p.type === "magnet") {
           magnetUntil = Math.max(magnetUntil, now2 + 6000);
           playSfx(sfxStarSrc, 0.55);
+          burst(p.x, p.y, "rgba(236,72,153,0.90)");
         }
 
         if (p.type === "time") {
@@ -1226,11 +1302,13 @@
           timeLeft = Math.min(timeLeft, 180);
           timeEl.textContent = String(Math.ceil(timeLeft));
           playSfx(sfxStarSrc, 0.50);
+          burst(p.x, p.y, "rgba(6,182,212,0.90)");
         }
 
         if (p.type === "block") {
           noCollectUntil = Math.max(noCollectUntil, now2 + 2000);
           playSfx(sfxNubeSrc, 0.55);
+          burst(p.x, p.y, "rgba(124,58,237,0.80)");
         }
 
         if (p.type === "rainbow") {
@@ -1238,9 +1316,8 @@
           rainbowBgStart = now2;
           rainbowBgUntil = now2 + 5000;
           playSfx(sfxStarSrc, 0.55);
+          burst(p.x, p.y, null); // multi-color
         }
-
-        burst(p.x, p.y);
         return false;
       }
 
@@ -1262,26 +1339,58 @@
   }
 
   function drawEndOverlay() {
-    ctx.fillStyle = "rgba(255,255,255,.60)";
-    ctx.fillRect(0,0,W,H);
+    // blur-like glass overlay
+    ctx.save();
+    ctx.fillStyle = "rgba(240,238,255,0.78)";
+    ctx.fillRect(0, 0, W, H);
 
-    ctx.textAlign = "center";
     const win = (timeLeft <= 0 && lives > 0);
+    const emoji = win ? "🎉" : "💫";
+    const title = win ? "¡Felicitaciones!" : "¡Casi!";
+    const subtitle = win
+      ? "Terminaste el juego. ¿Jugamos otra vez?"
+      : "Te quedaste sin vidas. Tocá Reiniciar.";
 
-    ctx.fillStyle = "rgba(17,24,39,.88)";
-    ctx.font = "900 34px system-ui";
-    ctx.fillText(win ? "¡Felicitaciones!" : "Uy… esta vez no salió", W/2, H/2 - 28);
+    // card background
+    const cardW = Math.min(460, W - 40);
+    const cardH = 190;
+    const cardX = (W - cardW) / 2;
+    const cardY = H / 2 - cardH / 2;
 
-    ctx.fillStyle = "rgba(17,24,39,.72)";
-    ctx.font = "800 16px system-ui";
-    ctx.fillText(
-      win ? "Terminaste el juego. ¿Jugamos otra vez?" : "Te quedaste sin vidas. Tocá Reiniciar para jugar de nuevo.",
-      W/2, H/2 + 4
-    );
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.shadowColor = "rgba(124,58,237,0.18)";
+    ctx.shadowBlur = 32;
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, 22);
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
-    ctx.fillStyle = "rgba(17,24,39,.70)";
-    ctx.font = "900 18px system-ui";
-    ctx.fillText(`Puntaje final: ${score}`, W/2, H/2 + 34);
+    // emoji
+    ctx.font = "56px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(emoji, W / 2, cardY + 18);
+
+    // title
+    ctx.font = "900 28px 'Nunito', system-ui";
+    ctx.textBaseline = "top";
+    const grad = ctx.createLinearGradient(W / 2 - 100, 0, W / 2 + 100, 0);
+    grad.addColorStop(0, "#7c3aed");
+    grad.addColorStop(1, "#06b6d4");
+    ctx.fillStyle = grad;
+    ctx.fillText(title, W / 2, cardY + 80);
+
+    // subtitle
+    ctx.font = "700 14px 'Nunito', system-ui";
+    ctx.fillStyle = "rgba(107,114,128,0.95)";
+    ctx.fillText(subtitle, W / 2, cardY + 116);
+
+    // score
+    ctx.font = "900 20px 'Nunito', system-ui";
+    ctx.fillStyle = "#1a1035";
+    ctx.fillText(`Puntaje: ${score}  ⭐`, W / 2, cardY + 148);
+
+    ctx.restore();
   }
 
   function loop(ts) {
@@ -1338,7 +1447,12 @@
     if (gameWrap.hidden) return;
     canvas.setPointerCapture(evt.pointerId);
     const p = canvasPoint(evt);
-    if (hitPlayer(p.x,p.y)) {
+    // On mobile, allow dragging from anywhere in lower 55% of canvas for easier control
+    const isMobileTouch = (window.innerWidth < 700 || evt.pointerType === "touch");
+    if (isMobileTouch && p.y > H * 0.45) {
+      player.dragging = true;
+      player.dragOffsetX = 0; // center under finger
+    } else if (hitPlayer(p.x, p.y)) {
       player.dragging = true;
       player.dragOffsetX = p.x - player.x;
     }
