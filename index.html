@@ -16,17 +16,23 @@
   <img src="portada.png" alt="Nuvecielas" class="brand-img">
 </div>
       <div class="hud">
-        <div>Jugador: <strong id="playerNameHud">—</strong></div>
-        <div>Nivel: <strong id="levelHud">1</strong></div>
-        <div>Puntaje: <strong id="score">0</strong></div>
-        <div>Vidas: <strong id="lives">3</strong></div>
-        <div>Tiempo: <strong id="time">60</strong>s</div>
+        <div>👤 <strong id="playerNameHud">—</strong></div>
+        <div>🏵️ Nivel <strong id="levelHud">1</strong></div>
+        <div>⭐ <strong id="score">0</strong></div>
+        <div class="lives"><strong id="lives">❤️❤️❤️</strong></div>
+        <div>⏱️ <strong id="time">60</strong>s</div>
       </div>
     </header>
 
     <!-- PANTALLA PRINCIPAL -->
     <section class="card" id="menu">
-      <h1 class="title">Elegí tu jugadora</h1>
+      <div class="hero">
+        <img src="portada.png" alt="Nuvecielas" class="hero-img">
+        <h1 class="hero-title">Atrapa las Estrellas</h1>
+        <p class="hero-sub">✨ Un juego de las Nuvecielas ✨</p>
+      </div>
+
+      <h2 class="title">Elegí tu jugadora</h2>
       <p class="subtitle">PC: flechas ← →. Móvil: arrastrá al personaje con el dedo.</p>
 
       <div class="grid" id="charGrid"></div>
@@ -42,7 +48,7 @@
       </div>
 
       <div class="note" id="menuNote">Elegí un personaje y escribí tu nombre.</div>
-      <div class="note small">Imágenes esperadas en la carpeta: nuveciela.png, ciela.png, lunaria.png, nuve.png</div>
+      <div class="note small" id="bestNote"></div>
     </section>
 
     <!-- JUEGO -->
@@ -52,6 +58,7 @@
         Atrapá estrellas para sumar puntos. Evitá nubes oscuras (quitan vidas).
       </div>
       <div class="row">
+        <button id="pauseBtn" class="ghost" aria-pressed="false">⏸ Pausa</button>
         <button id="restartBtn" class="ghost">Reiniciar</button>
         <button id="backBtn" class="ghost">Volver al menú</button>
         <button id="muteBtn" class="ghost" aria-pressed="false">Sonido: ON</button>
