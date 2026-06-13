@@ -307,3 +307,6 @@ button:disabled{ opacity: .5; cursor: not-allowed; transform: none; box-shadow: 
 @media (prefers-reduced-motion: reduce){
   .hero-img, .hero-title{ animation: none; }
 }
+
+/* ==== Poder en la card de personaje ==== */
+.char .meta .power{ margin-top:2px; font-size:11px; font-weight:800; color:#7c3aed; }

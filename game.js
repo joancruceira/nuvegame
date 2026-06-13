@@ -229,6 +229,19 @@
     5: { bg: "noche", night: true },
   };
 
+  // NUEVO: poder por personaje (se carga atrapando estrellas)
+  const POWERS = {
+    ciela: { name: "Imán Estelar", emoji: "🧲", color: "rgba(6,182,212,1)" },
+    lunaria: { name: "Rayo de Sol", emoji: "☀️", color: "rgba(251,191,36,1)" },
+    nuve: { name: "Hielo Mágico", emoji: "❄️", color: "rgba(147,197,253,1)" },
+    nuveciela: {
+      name: "Escudo Arcoíris",
+      emoji: "🌈",
+      color: "rgba(167,139,250,1)",
+    },
+  };
+  const POWER_BTN = { r: 34, mx: 18, my: 18 };
+
   let selectedCharId = null;
 
   // --- Menu grid ---
@@ -264,7 +277,10 @@
 
       const meta = document.createElement("div");
       meta.className = "meta";
-      meta.innerHTML = `<div class="name">${c.label}</div><div class="desc">${c.desc}</div>`;
+      const pw = POWERS[c.id];
+      meta.innerHTML =
+        `<div class="name">${c.label}</div><div class="desc">${c.desc}</div>` +
+        (pw ? `<div class="power">${pw.emoji} ${pw.name}</div>` : "");
 
       btn.appendChild(av);
       btn.appendChild(meta);
@@ -360,6 +376,15 @@
   let magnetUntil = 0;
   let noCollectUntil = 0;
   let immuneUntil = 0;
+
+  // NUEVO: poder de personaje
+  let freezeUntil = 0; // nubes congeladas (Nuve)
+  let power = 0; // carga del poder 0..1
+  let powerFlashUntil = 0; // destello al activar
+  let powerBannerText = "";
+  let powerBannerColor = "#fff";
+  let powerBannerStart = 0;
+  let powerBannerUntil = 0;
 
   // efectos de fondo
   let lightningUntil = 0;
@@ -480,6 +505,10 @@
     magnetUntil = 0;
     noCollectUntil = 0;
     immuneUntil = 0;
+    freezeUntil = 0;
+    power = 0;
+    powerFlashUntil = 0;
+    powerBannerUntil = 0;
 
     lightningUntil = 0;
     rainbowBgUntil = 0;
@@ -1303,6 +1332,7 @@
           scoreEl.textContent = String(score);
           burst(st.x, st.y, "rgba(251,191,36,0.95)");
           spawnFloatText(st.x, st.y, "+10", "rgba(251,191,36,0.98)");
+          power = Math.min(1, power + 0.09);
           playStar();
           return false;
         }
@@ -1312,7 +1342,7 @@
     });
 
     clouds = clouds.filter((cl) => {
-      cl.y += cl.vy * dt;
+      if (now >= freezeUntil) cl.y += cl.vy * dt;
 
       if (collideCircle(cl.x, cl.y, cl.r, player.x, player.y, player.r)) {
         if (!immuneOn) {
@@ -1479,6 +1509,141 @@
     ctx.restore();
   }
 
+  // ====== NUEVO: PODER DE PERSONAJE ======
+  function powerBtnCenter() {
+    return {
+      x: W - POWER_BTN.mx - POWER_BTN.r,
+      y: H - POWER_BTN.my - POWER_BTN.r,
+    };
+  }
+
+  function showPowerBanner(text, color) {
+    powerBannerText = text;
+    powerBannerColor = color;
+    powerBannerStart = performance.now();
+    powerBannerUntil = powerBannerStart + 1300;
+  }
+
+  function activatePower() {
+    if (!running || paused || power < 1) return;
+    const cfg = POWERS[selectedCharId];
+    if (!cfg) return;
+    power = 0;
+    const now = performance.now();
+    powerFlashUntil = now + 380;
+    showPowerBanner(cfg.name, cfg.color);
+    playSfx(sfxStarSrc, 0.6);
+
+    if (selectedCharId === "ciela") {
+      magnetUntil = Math.max(magnetUntil, now + 6500); // Imán Estelar
+    } else if (selectedCharId === "nuveciela") {
+      immuneUntil = Math.max(immuneUntil, now + 6000); // Escudo Arcoíris
+      rainbowBgStart = now;
+      rainbowBgUntil = now + 6000;
+    } else if (selectedCharId === "lunaria") {
+      for (const cl of clouds) burst(cl.x, cl.y, "rgba(251,191,36,0.95)"); // Rayo de Sol
+      clouds = [];
+      lightningUntil = now + 220;
+    } else if (selectedCharId === "nuve") {
+      freezeUntil = now + 4500; // Hielo Mágico
+    }
+  }
+
+  function drawPowerButton() {
+    const cfg = POWERS[selectedCharId];
+    if (!cfg) return;
+    const c = powerBtnCenter();
+    const r = POWER_BTN.r;
+    const ready = power >= 1;
+    const now = performance.now();
+
+    ctx.save();
+    ctx.globalAlpha = ready ? 1 : 0.6;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(26,16,53,0.55)";
+    ctx.fill();
+
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, r - 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = cfg.color;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(
+      c.x,
+      c.y,
+      r - 3,
+      -Math.PI / 2,
+      -Math.PI / 2 + Math.PI * 2 * clamp(power, 0, 1),
+    );
+    ctx.stroke();
+
+    if (ready) {
+      const pulse = 0.5 + 0.5 * Math.sin(now / 180);
+      ctx.globalAlpha = 0.25 + 0.4 * pulse;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r + 4 + pulse * 3, 0, Math.PI * 2);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = cfg.color;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.globalAlpha = ready ? 1 : 0.75;
+    ctx.font = "22px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(cfg.emoji, c.x, c.y + 1);
+    ctx.restore();
+  }
+
+  function drawPowerBanner() {
+    const now = performance.now();
+    if (now >= powerBannerUntil) return;
+    const dur = Math.max(1, powerBannerUntil - powerBannerStart);
+    const t = clamp((now - powerBannerStart) / dur, 0, 1);
+    const appear = smooth01(clamp(t / 0.2, 0, 1));
+    const fade = 1 - smooth01(clamp((t - 0.6) / 0.4, 0, 1));
+    const scale = 0.7 + appear * 0.4;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(W / 2, H * 0.44);
+    ctx.scale(scale, scale);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "900 30px 'Nunito', system-ui";
+    ctx.lineWidth = 7;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
+    ctx.strokeText("✨ " + powerBannerText + " ✨", 0, 0);
+    ctx.fillStyle = powerBannerColor;
+    ctx.fillText("✨ " + powerBannerText + " ✨", 0, 0);
+    ctx.restore();
+  }
+
+  function drawFreezeFx() {
+    if (performance.now() >= freezeUntil) return;
+    ctx.save();
+    ctx.fillStyle = "rgba(147,197,253,0.16)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
+  function drawPowerFlash() {
+    const now = performance.now();
+    if (now >= powerFlashUntil) return;
+    const a = (powerFlashUntil - now) / 380;
+    ctx.save();
+    ctx.globalAlpha = 0.35 * a;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
   function drawEndOverlay() {
     // blur-like glass overlay
     ctx.save();
@@ -1566,6 +1731,12 @@
 
     drawStatusBadges();
     drawLevelBanner(); // NUEVO
+    if (running) {
+      drawFreezeFx();
+      drawPowerButton();
+    }
+    drawPowerBanner();
+    drawPowerFlash();
 
     if (running && !paused) update(dt);
     else if (paused) drawPauseOverlay();
@@ -1585,6 +1756,15 @@
     ) {
       e.preventDefault();
       setPaused(!paused);
+    }
+    if (
+      (e.key === "e" || e.key === "E") &&
+      running &&
+      !paused &&
+      !gameWrap.hidden
+    ) {
+      e.preventDefault();
+      activatePower();
     }
   });
   window.addEventListener("keyup", (e) => {
@@ -1613,6 +1793,12 @@
       return;
     } // partida terminada: tocar la pantalla reinicia
     if (paused) return; // sin movimiento durante la pausa
+    const pp = canvasPoint(evt);
+    const bc = powerBtnCenter();
+    if (Math.hypot(pp.x - bc.x, pp.y - bc.y) <= POWER_BTN.r + 6) {
+      if (power >= 1) activatePower();
+      return; // tocó el botón de poder: no arrastrar
+    }
     canvas.setPointerCapture(evt.pointerId);
     const p = canvasPoint(evt);
     // On mobile, allow dragging from anywhere in lower 55% of canvas for easier control
