@@ -7,6 +7,10 @@
 
   const charGrid = document.getElementById("charGrid");
   const playerNameInput = document.getElementById("playerName");
+  const nameRow = document.getElementById("nameRow");
+  const knownRow = document.getElementById("knownRow");
+  const knownHello = document.getElementById("knownHello");
+  const notMeBtn = document.getElementById("notMeBtn");
 
   const startBtn = document.getElementById("startBtn");
   const restartBtn = document.getElementById("restartBtn");
@@ -25,6 +29,30 @@
   const closeHelp = document.getElementById("closeHelp");
   const menuNote = document.getElementById("menuNote");
   const bestNote = document.getElementById("bestNote");
+
+  // --- MUNDO COMPARTIDO ---
+  // Definido por /nuve-world.js. Puede NO existir: este juego también se
+  // publica solo en su propio dominio, y ahí tiene que andar igual que siempre.
+  const World = window.NuveWorld || null;
+  const GAME_ID = "estrellas";
+
+  // Quién está jugando según el mundo. Si el hub ya sabe quién es, acá no se
+  // vuelve a preguntar: ese es todo el punto de compartir el origen.
+  let worldPlayer = World ? World.currentPlayer() : null;
+
+  function refreshWhoIsPlaying() {
+    worldPlayer = World ? World.currentPlayer() : null;
+    if (!knownRow || !nameRow) return;
+
+    if (worldPlayer) {
+      knownHello.textContent = "¡Hola, " + worldPlayer.name + "!";
+      knownRow.hidden = false;
+      nameRow.hidden = true;
+    } else {
+      knownRow.hidden = true;
+      nameRow.hidden = false;
+    }
+  }
 
   // --- BASE LOGIC SIZE (NO CAMBIA) ---
   const W = 900;
@@ -299,11 +327,14 @@
   }
 
   function validateStart() {
-    const nameOk = (playerNameInput.value || "").trim().length >= 1;
+    const nameOk =
+      !!worldPlayer || (playerNameInput.value || "").trim().length >= 1;
     const charOk = !!selectedCharId;
     startBtn.disabled = !(nameOk && charOk);
     menuNote.textContent = startBtn.disabled
-      ? "Elegí un personaje y escribí tu nombre."
+      ? worldPlayer
+        ? "Elegí un personaje."
+        : "Elegí un personaje y escribí tu nombre."
       : "Listo. Tocá “Ok, empezar”.";
   }
   playerNameInput.addEventListener("input", validateStart);
@@ -316,18 +347,35 @@
   let timeLeft = 60;
   let lives = 3;
 
-  // Mejor puntaje persistente (localStorage)
+  // Mejor puntaje. Con el mundo compartido es de CADA jugador: antes había un
+  // solo récord para toda la casa, así que el hermano te lo pisaba.
+  // El récord viejo (`nuve_best`) no se hereda ni se borra: cada uno arranca su
+  // propia marca para tener algo propio que superar.
   let bestScore = 0;
-  try {
-    bestScore = parseInt(localStorage.getItem("nuve_best") || "0", 10) || 0;
-  } catch (_) {}
-  function saveBest() {
-    if (score > bestScore) {
-      bestScore = score;
-      try {
-        localStorage.setItem("nuve_best", String(bestScore));
-      } catch (_) {}
+  function loadBest() {
+    if (World && worldPlayer) {
+      const saved = World.gameState(GAME_ID).best;
+      bestScore = typeof saved === "number" ? saved : 0;
+      return;
     }
+    try {
+      bestScore = parseInt(localStorage.getItem("nuve_best") || "0", 10) || 0;
+    } catch (_) {
+      bestScore = 0;
+    }
+  }
+  loadBest();
+
+  function saveBest() {
+    if (score <= bestScore) return;
+    bestScore = score;
+    if (World && worldPlayer) {
+      World.recordBest(GAME_ID, "best", score, "higher");
+      return;
+    }
+    try {
+      localStorage.setItem("nuve_best", String(bestScore));
+    } catch (_) {}
   }
 
   let level = 1;
@@ -533,7 +581,22 @@
 
   function startGame() {
     const chosen = characters.find((c) => c.id === selectedCharId);
-    const name = (playerNameInput.value || "").trim().slice(0, 18);
+
+    let name;
+    if (worldPlayer) {
+      name = worldPlayer.name;
+    } else {
+      name = (playerNameInput.value || "").trim().slice(0, 18);
+      // Entrar escribiendo el nombre acá también CREA el perfil: después el
+      // hub y el Bosque Mágico van a reconocer a este chico sin volver a
+      // preguntarle. Cualquier puerta sirve para entrar al mundo.
+      if (World && World.enterByName(name)) {
+        worldPlayer = World.currentPlayer();
+        loadBest();
+        refreshWhoIsPlaying();
+        renderBest();
+      }
+    }
 
     player.char = chosen;
     player.name = name;
@@ -1877,6 +1940,18 @@
       bestScore > 0 ? `🏆 Mejor puntaje: ${bestScore}` : "";
   }
 
+  if (notMeBtn) {
+    notMeBtn.addEventListener("click", () => {
+      if (World) World.clearCurrentPlayer();
+      refreshWhoIsPlaying();
+      loadBest();
+      renderBest();
+      validateStart();
+      if (playerNameInput) playerNameInput.focus();
+    });
+  }
+
+  refreshWhoIsPlaying();
   renderCharacterGrid();
   validateStart();
   renderBest();

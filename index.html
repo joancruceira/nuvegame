@@ -37,7 +37,12 @@
 
       <div class="grid" id="charGrid"></div>
 
-      <div class="row">
+      <div class="row" id="knownRow" hidden>
+        <span class="label" id="knownHello"></span>
+        <button id="notMeBtn" class="ghost">No soy yo</button>
+      </div>
+
+      <div class="row" id="nameRow">
         <label class="label" for="playerName">Escribe tu nombre:</label>
         <input id="playerName" class="input" placeholder="Tu nombre" maxlength="18" />
       </div>
@@ -81,6 +86,9 @@
     <footer class="footer">Hecho con HTML/CSS/JS — Nuvecielas</footer>
   </main>
 
+  <!-- Contrato compartido del universo. Puede no existir si este juego se
+       publica solo en su propio dominio: game.js contempla ese caso. -->
+  <script src="/nuve-world.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
