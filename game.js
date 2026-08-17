@@ -616,7 +616,20 @@
   function stopGame() {
     running = false;
     stopMusic();
+
+    // El récord se guarda antes de anotar, para saber si esta partida lo rompió.
+    const wasRecord = score > bestScore;
     saveBest();
+
+    // Que el mundo se entere: el hub lo lee para contarle a la nena lo que hizo.
+    if (World && worldPlayer) {
+      World.note(GAME_ID, "partida", {
+        value: score,
+        level: level,
+        record: wasRecord,
+        label: "Atrapa las Estrellas",
+      });
+    }
   }
 
   function backToMenu() {
